@@ -1,66 +1,72 @@
 # 第3章 模板与泛型
 
-> 本章介绍C++的模板机制，包括函数模板和类模板，让你学会编写"一次编写，多种类型通用"的代码。
+> ⭐ **核心章节** - C++泛型编程的基础
 
 ---
 
 ## 📋 目录
 
-1. [为什么需要模板](#1-为什么需要模板)
+1. [为什么需要模板？](#1-为什么需要模板)
 2. [函数模板](#2-函数模板)
 3. [类模板](#3-类模板)
 4. [模板的深入应用](#4-模板的深入应用)
-5. [模板与STL的关系](#5-模板与stl的关系)
-6. [常见错误与注意事项](#6-常见错误与注意事项)
-7. [练习建议](#7-练习建议)
+5. [常见错误与调试](#5-常见错误与调试)
+6. [练习建议](#6-练习建议)
 
 ---
 
-## 1. 为什么需要模板
+## 1. 为什么需要模板？
 
-### 1.1 没有模板的痛苦
+### 1.1 痛苦的函数重载
 
-假设你要写一个比较两个数大小的函数，可能会这样写：
+想象一下，你要写一个求最大值的函数：
 
 ```cpp
-// 整数版本
-int max(int a, int b) {
-    return a > b ? a : b;
+// 版本1：处理int
+int max(int a, int b, int c) {
+    if(b > a) a = b;
+    if(c > a) a = c;
+    return a;
 }
 
-// 浮点数版本
-double max(double a, double b) {
-    return a > b ? a : b;
+// 版本2：处理float
+float max(float a, float b, float c) {
+    if(b > a) a = b;
+    if(c > a) a = c;
+    return a;
 }
 
-// 字符版本
-char max(char a, char b) {
-    return a > b ? a : b;
+// 版本3：处理double
+double max(double a, double b, double c) {
+    if(b > a) a = b;
+    if(c > a) a = c;
+    return a;
 }
 ```
 
-如果还要支持 `long`、`short`、`unsigned int` 呢？代码会变得又臭又长，而且每份代码的逻辑都是一样的，纯粹是类型不同而已。
+**问题**：这三个函数的逻辑完全相同！只是数据类型不同，却要写三遍。
 
 ### 1.2 模板的解决方案
 
-**模板（Template）** 就是C++给你的一把"万能钥匙"——你只写一份代码，编译器帮你生成针对不同类型的具体代码。
+C++提供了**模板（Template）**机制，用一个"模板"来生成针对不同类型的代码：
 
 ```cpp
-// 模板版本：一个函数搞定所有类型！
-template<typename T>
-T max(T a, T b) {
-    return a > b ? a : b;
+template<typename T>  // T是一个类型参数，编译器会自动推断
+T max(T a, T b, T c) {
+    if(b > a) a = b;
+    if(c > a) a = c;
+    return a;
 }
 ```
 
-现在你只需要调用：
-```cpp
-cout << max(3, 5) << endl;          // 整数
-cout << max(3.14, 2.71) << endl;    // 浮点数
-cout << max('a', 'z') << endl;      // 字符
-```
+**通俗理解**：模板就像一个"万能模具"，往里面倒什么材料（T），就生产出什么产品。
 
-编译器会根据你传入的参数类型，自动生成对应的函数。
+### 1.3 模板的两大类
+
+| 类型 | 作用 | 关键词 |
+|------|------|--------|
+| **函数模板** | 创建通用功能的函数 | `template<typename T>` |
+| **类模板** | 创建通用类型的类 | `template<typename T>` |
 
 ---
 
@@ -69,60 +75,37 @@ cout << max('a', 'z') << endl;      // 字符
 ### 2.1 基本语法
 
 ```cpp
-template<typename T>
-返回类型 函数名(参数列表) {
+template<模板参数表>
+返回类型 函数名(形式参数表) { 
     // 函数体
 }
 ```
 
-或者使用 `class` 关键字（效果相同）：
-```cpp
-template<class T>
-返回类型 函数名(参数列表) {
-    // 函数体
-}
-```
+**语法要点**：
+- 模板参数表用尖括号 `<>` 包裹
+- `typename` 是最常用的类型参数关键字（也可以用 `class`，两者等价）
+- 类型参数名可以自己起，常见的有 `T`、`Type`、`Value` 等
 
-**解释**：
-- `template` - 声明这是一个模板
-- `typename T` 或 `class T` - 声明一个类型参数 `T`，`T` 只是一个名字，可以换成任何你喜欢的名字，如 `T`、`Type`、`Value` 等
-- 类型参数 `T` 就像一个"占位符"，在函数被调用时会替换成具体的类型
-
-### 2.2 通俗理解
-
-可以把 `typename T` 想象成一个"会自动填写的表单"：
-- 当你写 `max(3, 5)` 时，`T` 就自动变成 `int`
-- 当你写 `max(3.14, 2.71)` 时，`T` 就自动变成 `double`
-- 编译器在编译阶段会帮你生成对应类型的函数
-
-### 2.3 完整示例：交换两个数
+### 2.2 第一个函数模板示例
 
 ```cpp
 #include <iostream>
 using namespace std;
 
-// 函数模板：交换任意类型的两个数
+// 定义函数模板：求绝对值
 template<typename T>
-void swap(T& a, T& b) {
-    T temp = a;  // 注意：这里创建了一个 T 类型的临时变量
-    a = b;
-    b = temp;
+T myabs(T x) {
+    return x < 0 ? -x : x;
 }
 
 int main() {
-    // 交换整数
-    int x = 10, y = 20;
-    cout << "交换前: x = " << x << ", y = " << y << endl;
-    swap(x, y);
-    cout << "交换后: x = " << x << ", y = " << y << endl;
+    int n = -5;
+    double d = -5.5;
+    float f = 3.0f;
     
-    cout << "---" << endl;
-    
-    // 交换浮点数
-    double p = 3.14, q = 2.71;
-    cout << "交换前: p = " << p << ", q = " << q << endl;
-    swap(p, q);
-    cout << "交换后: p = " << p << ", q = " << q << endl;
+    cout << myabs(n) << endl;  // 输出: 5
+    cout << myabs(d) << endl;  // 输出: 5.5
+    cout << myabs(f) << endl;  // 输出: 3
     
     return 0;
 }
@@ -130,12 +113,35 @@ int main() {
 
 **运行结果**：
 ```
-交换前: x = 10, y = 20
-交换后: x = 20, y = 10
----
-交换前: p = 3.14, q = 2.71
-交换后: p = 2.71, q = 3.14
+5
+5.5
+3
 ```
+
+**编译器做了什么**：当你调用 `myabs(n)` 时，编译器看到 `n` 是 `int` 类型，就会自动生成一个 `int` 版本的函数：
+```cpp
+int myabs(int x) {
+    return x < 0 ? -x : x;
+}
+```
+
+### 2.3 显式实例化 vs 自动推断
+
+**方式一：自动推断（推荐）**
+```cpp
+int i = max(35, 120);      // 编译器推断T为int
+double d = max(172.5, 193.4);  // 编译器推断T为double
+```
+
+**方式二：显式指定类型**
+```cpp
+int i = max<int>(35, 120);
+double d = max<double>(172.5, 193.4);
+```
+
+**什么时候需要显式指定？**
+- 当编译器无法自动推断时
+- 当你想强制使用某种类型时
 
 ### 2.4 多个类型参数
 
@@ -145,197 +151,180 @@ int main() {
 #include <iostream>
 using namespace std;
 
-// 两个不同的类型参数
+// 两个类型参数
 template<typename T1, typename T2>
-void printBoth(T1 a, T2 b) {
-    cout << "第一个值: " << a << " (类型参数T1)" << endl;
-    cout << "第二个值: " << b << " (类型参数T2)" << endl;
-}
-
-// 返回值类型可以与参数类型不同
-template<typename T1, typename T2>
-T1 maxOfDifferentTypes(T1 a, T2 b) {
-    return (a > b) ? a : b;  // 返回T1类型
+T1 max(T1 a, T2 b) {
+    return (b > a) ? b : a;
 }
 
 int main() {
-    printBoth("Hello", 42);        // 字符串和整数
-    printBoth(3.14, 'A');         // 浮点数和字符
-    
-    cout << "---" << endl;
-    
-    int result = maxOfDifferentTypes(10, 3.14);  // 返回int类型
-    cout << "较大值: " << result << endl;
+    cout << max(7.5, 5) << endl;   // 输出: 7.5（T1=double, T2=int）
+    cout << max(5, 7.5) << endl;  // 输出: 7（T1=int, T2=double）
     
     return 0;
 }
 ```
 
-### 2.5 函数模板的显式实例化
+**注意**：返回类型是 `T1`，所以第一个参数的类型决定了返回类型。
 
-有时候你想控制模板的具体化过程，可以用显式实例化：
-
-```cpp
-#include <iostream>
-using namespace std;
-
-template<typename T>
-T add(T a, T b) {
-    return a + b;
-}
-
-// 显式实例化：告诉编译器现在就生成int版本的函数
-template int add<int>(int, int);
-
-int main() {
-    // 如果某处调用了 add() 但你没有显式实例化，
-    // 编译器会隐式实例化（按需生成）
-    cout << add(3, 5) << endl;
-    return 0;
-}
-```
-
-### 2.6 普通函数与函数模板的重载
-
-当普通函数和函数模板都能匹配时，**普通函数优先**：
+### 2.5 数组版函数模板
 
 ```cpp
 #include <iostream>
+#include <string>
 using namespace std;
 
+// 求数组中的最大值
 template<typename T>
-T max(T a, T b) {
-    cout << "调用模板函数" << endl;
-    return a > b ? a : b;
-}
-
-// 普通函数版本
-int max(int a, int b) {
-    cout << "调用普通函数" << endl;
-    return a > b ? a : b;
+T max(const T* array, int size) {
+    T max_val = array[0];
+    for (int i = 1; i < size; ++i) {
+        if (array[i] > max_val) {
+            max_val = array[i];
+        }
+    }
+    return max_val;
 }
 
 int main() {
-    cout << max(3, 5) << endl;      // 调用普通函数（优先匹配）
-    cout << max(3.14, 2.71) << endl; // 调用模板函数（只有模板匹配）
+    int ia[5] = {10, 7, 14, 3, 25};
+    double da[6] = {10.2, 7.1, 14.5, 3.2, 25.6, 16.8};
+    string sa[5] = {"上海", "北京", "沈阳", "广州", "武汉"};
+    
+    cout << "整数最大值为：" << max(ia, 5) << endl;
+    cout << "实数最大值为：" << max(da, 6) << endl;
+    cout << "字典排序最大为：" << max(sa, 5) << endl;
+    
     return 0;
 }
 ```
 
 **运行结果**：
 ```
-调用普通函数
-8
-调用模板函数
-3.14
+整数最大值为：25
+实数最大值为：25.6
+字典排序最大为：武汉
 ```
+
+**通俗理解**：这个函数就像一个"万能评委"，无论是整数数组、浮点数数组还是字符串数组，它都能找出最大值。
+
+### 2.6 函数模板与普通函数的重载
+
+当存在同名普通函数和函数模板时，C++的调用优先级是：
+
+1. **首先**找参数完全匹配的**普通函数**
+2. **然后**找参数完全匹配的**模板函数**
+3. **最后**尝试通过自动类型转换匹配的普通函数
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 函数模板
+template<typename T>
+T max(T a, T b) {
+    cout << "调用函数模板" << endl;
+    return (a > b) ? a : b;
+}
+
+// 普通函数（优先匹配）
+int max(int a, int b) {
+    cout << "调用普通函数" << endl;
+    return (a > b) ? a : b;
+}
+
+int main() {
+    int i1 = 10, i2 = 20;
+    double d1 = 10.5, d2 = 20.5;
+    
+    max(i1, i2);   // 调用普通函数：参数完全匹配
+    max(d1, d2);   // 调用函数模板：没有double版本的普通函数
+    
+    return 0;
+}
+```
+
+### 2.7 函数模板的注意事项
+
+1. **模板参数类型不能自动转换**
+   ```cpp
+   // 错误！模板匹配时不进行类型转换
+   max(7.5, 5);  // error: 没有完全匹配的类型
+   
+   // 正确：显式指定类型
+   max<double>(7.5, 5);
+   ```
+
+2. **只适用于参数个数相同、函数体相同的情况**
+   - 如果参数个数不同，就不能用同一个函数模板
+
+3. **模板代码通常放在头文件中**
+   - 因为编译器需要看到模板定义才能实例化
 
 ---
 
 ## 3. 类模板
 
-### 3.1 为什么需要类模板
+### 3.1 为什么需要类模板？
 
-类模板允许你创建一个可以处理多种数据类型的类。最典型的例子就是 **STL中的容器类**，比如 `vector` 可以存放任何类型的元素：
+同样的问题：如果要写一个"比较"类来处理不同类型：
 
 ```cpp
-vector<int> intVec;      // 存放整数的向量
-vector<double> doubleVec; // 存放浮点数的向量
-vector<string> strVec;    // 存放字符串的向量
+// int版本
+class Compare_int {
+public:
+    Compare_int(int a, int b) { x = a; y = b; }
+    int max() { return (x > y) ? x : y; }
+    int min() { return (x < y) ? x : y; }
+private:
+    int x, y;
+};
+
+// 如果还要处理float、double...太痛苦了！
 ```
+
+**解决方案**：用类模板！
 
 ### 3.2 类模板的基本语法
 
 ```cpp
-template<typename T>
-class 类名 {
-private:
-    T 成员变量;  // 使用类型参数 T
+template<typename numtype>
+class Compare {
 public:
-    类名(T param);           // 构造函数
-    T getValue();            // 成员函数
-    void setValue(T value);
+    Compare(numtype a, numtype b) : x(a), y(b) {}
+    numtype max() { return (x > y) ? x : y; }
+    numtype min() { return (x < y) ? x : y; }
+private:
+    numtype x, y;
 };
 ```
 
-**类模板的成员函数定义**：
-在类外定义模板类的成员函数时，必须重复 `template<typename T>`：
-
-```cpp
-template<typename T>
-返回类型 类名<T>::成员函数名(参数) {
-    // 函数体
-}
-```
-
-### 3.3 完整示例：简单的 Stack 类
+### 3.3 类模板的使用
 
 ```cpp
 #include <iostream>
-#include <vector>
-#include <stdexcept>
 using namespace std;
 
-// 类模板：实现一个简单的栈
-template<typename T>
-class Stack {
-private:
-    vector<T> data;  // 使用vector存储数据
-    
+template<typename numtype>
+class Compare {
 public:
-    // 入栈
-    void push(T value) {
-        data.push_back(value);
-    }
-    
-    // 出栈
-    T pop() {
-        if (data.empty()) {
-            throw out_of_range("Stack is empty!");
-        }
-        T top = data.back();
-        data.pop_back();
-        return top;
-    }
-    
-    // 查看栈顶元素（不出栈）
-    T& top() {
-        if (data.empty()) {
-            throw out_of_range("Stack is empty!");
-        }
-        return data.back();
-    }
-    
-    // 判断栈是否为空
-    bool empty() const {
-        return data.empty();
-    }
-    
-    // 获取栈的大小
-    size_t size() const {
-        return data.size();
-    }
+    Compare(numtype a, numtype b) : x(a), y(b) {}
+    numtype max() { return (x > y) ? x : y; }
+    numtype min() { return (x < y) ? x : y; }
+private:
+    numtype x, y;
 };
 
 int main() {
-    // 整数栈
-    Stack<int> intStack;
-    intStack.push(10);
-    intStack.push(20);
-    intStack.push(30);
+    // 创建不同类型的对象
+    Compare<int> intComp(10, 20);
+    Compare<double> doubleComp(3.14, 2.71);
+    Compare<char> charComp('A', 'a');
     
-    cout << "整数栈大小: " << intStack.size() << endl;
-    cout << "栈顶元素: " << intStack.top() << endl;
-    cout << "弹出: " << intStack.pop() << endl;
-    cout << "弹出后栈顶: " << intStack.top() << endl;
-    
-    cout << "---" << endl;
-    
-    // 字符串栈
-    Stack<string> strStack;
-    strStack.push("Hello");
-    strStack.push("World");
-    cout << "字符串栈顶: " << strStack.top() << endl;
+    cout << "int最大: " << intComp.max() << endl;
+    cout << "int最小: " << intComp.min() << endl;
+    cout << "double最大: " << doubleComp.max() << endl;
+    cout << "char最大: " << charComp.max() << endl;  // 'a'
     
     return 0;
 }
@@ -343,90 +332,155 @@ int main() {
 
 **运行结果**：
 ```
-整数栈大小: 3
-栈顶元素: 30
-弹出: 30
-弹出后栈顶: 20
----
-字符串栈顶: World
+int最大: 20
+int最小: 10
+double最大: 3.14
+char最大: a
 ```
 
-### 3.4 类模板的特化
+### 3.4 类模板外定义成员函数
 
-有时你可能想让某种特定类型使用不同的实现，这就是 **模板特化**：
+当在类模板外部定义成员函数时，也需要带上模板声明：
 
 ```cpp
-#include <iostream>
-#include <cstring>
-using namespace std;
-
-// 通用类模板
 template<typename T>
-class Comparator {
+class Store {
 public:
-    static bool isEqual(T a, T b) {
-        return a == b;
-    }
+    Store();                  // 构造函数
+    T GetElem();              // 获取元素
+    void PutElem(T x);        // 存放元素
+private:
+    T item;
+    int valued;               // 标记是否有值
 };
 
-// 字符数组的特化版本
-template<>
-class Comparator<char*> {
-public:
-    static bool isEqual(char* a, char* b) {
-        return strcmp(a, b) == 0;  // 字符串比较用strcmp
-    }
-};
+// 类外定义构造函数
+template<typename T>
+Store<T>::Store() : valued(0) { }
 
-int main() {
-    // 使用通用模板
-    cout << Comparator<int>::isEqual(3, 3) << endl;      // 1 (true)
-    cout << Comparator<int>::isEqual(3, 5) << endl;      // 0 (false)
-    
-    // 使用特化版本
-    char str1[] = "hello";
-    char str2[] = "hello";
-    char str3[] = "world";
-    
-    cout << Comparator<char*>::isEqual(str1, str2) << endl;  // 1 (true)
-    cout << Comparator<char*>::isEqual(str1, str3) << endl;  // 0 (false)
-    
-    return 0;
+// 类外定义获取元素函数
+template<typename T>
+T Store<T>::GetElem() {
+    if (valued == 0) {
+        cout << "No item present!" << endl;
+        exit(1);
+    }
+    return item;
+}
+
+// 类外定义存放元素函数
+template<typename T>
+void Store<T>::PutElem(T x) {
+    valued++;
+    item = x;
 }
 ```
 
-### 3.5 类模板的多参数
+**注意**：类名后的 `<T>` 不能省略！
 
-类模板可以有多于一个类型参数：
+### 3.5 类模板应用示例：顺序表
+
+顺序表是一种最基础的数据结构，用类模板实现：
 
 ```cpp
 #include <iostream>
+#include <cstdlib>
 using namespace std;
 
-// 两个类型参数的模板
-template<typename T1, typename T2>
-class Pair {
+// 顺序表类模板
+template <typename T, int size>
+class SeqList {
 private:
-    T1 first;
-    T2 second;
-    
+    T data[size];      // 存储数据的数组
+    int maxSize;       // 最大容量
+    int last;          // 最后一个元素的下标
+
 public:
-    Pair(T1 f, T2 s) : first(f), second(s) {}
+    SeqList() { last = -1; maxSize = size; }
     
-    T1 getFirst() { return first; }
-    T2 getSecond() { return second; }
+    // 获取表长度
+    int Length() const { return last + 1; }
     
-    void print() {
-        cout << "First: " << first << ", Second: " << second << endl;
+    // 判断是否为空
+    bool IsEmpty() const { return last == -1; }
+    
+    // 判断是否已满
+    bool IsFull() const { return last == maxSize - 1; }
+    
+    // 查找元素位置
+    int Find(const T& x) const {
+        int i = 0;
+        while (i <= last && data[i] != x) i++;
+        if (i > last) return -1;  // 未找到
+        return i;                 // 返回下标
+    }
+    
+    // 判断元素是否存在
+    bool IsIn(const T& x) const {
+        return Find(x) != -1;
+    }
+    
+    // 插入元素到第i个位置（下标从0开始）
+    bool Insert(const T& x, int i) {
+        if (i < 0 || i > last + 1 || IsFull()) return false;
+        for (int j = last; j >= i; j--) {
+            data[j + 1] = data[j];
+        }
+        data[i] = x;
+        last++;
+        return true;
+    }
+    
+    // 删除元素
+    bool Remove(const T& x) {
+        int pos = Find(x);
+        if (pos == -1) return false;
+        for (int j = pos; j < last; j++) {
+            data[j] = data[j + 1];
+        }
+        last--;
+        return true;
+    }
+    
+    // 获取第i个元素
+    T& operator[](int i) {
+        if (i < 0 || i > last) {
+            cout << "下标越界！" << endl;
+            exit(1);
+        }
+        return data[i];
     }
 };
 
+// 学生结构体
+struct Student {
+    int id;
+    int age;
+};
+
 int main() {
-    Pair<int, string> student(1, "Alice");
-    student.print();
+    // 创建整型顺序表
+    SeqList<int, 100> intList;
     
-    Pair<double, char> mixed(3.14, 'A');
-    mixed.print();
+    // 插入一些数据
+    intList.Insert(2, 0);
+    intList.Insert(3, 1);
+    intList.Insert(5, 2);
+    intList.Insert(7, 3);
+    
+    // 使用下标访问
+    cout << "表长度: " << intList.Length() << endl;
+    cout << "第2个元素: " << intList[1] << endl;
+    
+    // 查找元素
+    int key = 5;
+    if (intList.IsIn(key)) {
+        cout << key << " 在表中，下标为: " << intList.Find(key) << endl;
+    }
+    
+    // 删除元素
+    intList.Remove(5);
+    cout << "删除5后表长度: " << intList.Length() << endl;
     
     return 0;
 }
@@ -438,299 +492,212 @@ int main() {
 
 ### 4.1 非类型模板参数
 
-除了类型参数，模板还可以接受**具体的值**作为参数：
+模板参数不一定是类型，也可以是具体的值：
 
 ```cpp
 #include <iostream>
 using namespace std;
 
-// 非类型模板参数：指定数组大小
-template<int N>
-class ArrayWrapper {
+// 固定大小的数组类模板
+template<typename T, int size>
+class Array {
 private:
-    int data[N];
-    int currentSize;
-    
+    T element[size];
+    int num;
 public:
-    ArrayWrapper() : currentSize(0) {}
-    
-    void add(int value) {
-        if (currentSize < N) {
-            data[currentSize++] = value;
-        }
-    }
-    
-    void print() {
-        cout << "Array (size " << currentSize << "/" << N << "): ";
-        for (int i = 0; i < currentSize; i++) {
-            cout << data[i] << " ";
-        }
-        cout << endl;
-    }
+    Array() : num(size) {}
+    int getSize() const { return num; }
 };
 
 int main() {
-    ArrayWrapper<5> smallArray;  // 最多5个元素
-    ArrayWrapper<10> bigArray;   // 最多10个元素
+    Array<int, 30> a1;    // 30个int的数组
+    Array<double, 40> a2; // 40个double的数组
     
-    for (int i = 1; i <= 7; i++) {
-        smallArray.add(i * 10);
-    }
-    smallArray.print();
+    cout << "a1大小: " << a1.getSize() << endl;
+    cout << "a2大小: " << a2.getSize() << endl;
     
     return 0;
 }
 ```
 
-**运行结果**：
-```
-Array (size 5/5): 10 20 30 40 50 
-```
+**注意**：非类型参数通常是整数类型（int、char等）或指针。
 
 ### 4.2 模板参数默认值
 
-类模板的参数可以有默认值：
+C++11开始支持模板参数默认值：
 
 ```cpp
 #include <iostream>
 using namespace std;
 
-template<typename T, int SIZE = 10>
-class FixedArray {
+template<typename T = int, int size = 100>
+class Stack {
 private:
-    T data[SIZE];
-    int length;
-    
+    T data[size];
+    int top;
 public:
-    FixedArray() : length(0) {}
-    
-    void add(T value) {
-        if (length < SIZE) {
-            data[length++] = value;
-        }
-    }
-    
-    void print() {
-        cout << "Array: ";
-        for (int i = 0; i < length; i++) {
-            cout << data[i] << " ";
-        }
-        cout << endl;
-    }
+    Stack() : top(-1) {}
+    void push(T val) { data[++top] = val; }
+    T pop() { return data[top--]; }
 };
 
 int main() {
-    FixedArray<int> defaultSize;    // 默认大小10
-    FixedArray<int, 5> customSize;  // 自定义大小5
+    // 使用默认参数
+    Stack<> s1;  // Stack<int, 100>
     
-    for (int i = 0; i < 6; i++) {
-        defaultSize.add(i);
-        customSize.add(i);
-    }
-    
-    defaultSize.print();   // 输出6个元素
-    customSize.print();    // 输出5个元素
+    // 指定参数
+    Stack<double, 50> s2;
     
     return 0;
 }
 ```
 
-### 4.3 模板的编译与分离式编程
+### 4.3 模板特化
 
-⚠️ **重要提醒**：模板的声明和实现**通常必须放在同一个文件中**，因为模板需要**在编译时实例化**，编译器需要看到完整的模板定义。
-
-下面这种分离式编程（.h + .cpp）对普通函数可以，但**对模板不行**：
-
-```cpp
-// ❌ 错误示范
-// Student.h
-template<typename T>
-class Student {
-    void display();  // 只声明，不实现
-};
-
-// Student.cpp
-template<typename T>
-void Student<T>::display() {
-    // 实现
-}
-
-// main.cpp
-#include "Student.h"
-Student<int> s;  // 编译错误！编译器找不到display的实现
-```
-
-**正确做法**：将模板的声明和实现都放在头文件中：
-
-```cpp
-// ✅ 正确做法：全部放在 .h 文件中
-// Student.h
-template<typename T>
-class Student {
-public:
-    void display();  // 声明
-};
-
-// 模板的实现也放在 .h 文件中
-template<typename T>
-void Student<T>::display() {
-    cout << "Student template" << endl;
-}
-```
-
-### 4.4 typename 的另一种用法
-
-`typename` 还可以用来明确告诉编译器**这是一个类型名**，避免解析歧义：
+有时需要对特定类型进行特殊处理：
 
 ```cpp
 #include <iostream>
+#include <cstring>
 using namespace std;
 
+// 通用模板
+template<typename T>
+T max(T a, T b) {
+    return (a > b) ? a : b;
+}
+
+// 字符数组的特化版本
+template<>
+char* max<char*>(char* a, char* b) {
+    return strcmp(a, b) > 0 ? a : b;
+}
+
+int main() {
+    cout << max(10, 20) << endl;           // 调用通用模板
+    cout << max("apple", "banana") << endl; // 调用特化版本
+    
+    return 0;
+}
+```
+
+### 4.4 模板分离式编程的注意事项
+
+**重要**：类模板的声明和实现通常要放在同一个头文件中！
+
+```cpp
+// ❌ 错误做法：分开存放会导致链接错误
+// mytemplate.h (只有声明)
+// mytemplate.cpp (只有实现)
+
+// ✅ 正确做法：全部放在头文件中
+// mytemplate.h
+template<typename T>
+class MyTemplate {
+public:
+    void doSomething(T val);
+};
+
+template<typename T>
+void MyTemplate<T>::doSomething(T val) {
+    // 实现
+}
+```
+
+**原因**：模板在编译时需要看到完整定义才能实例化。
+
+---
+
+## 5. 常见错误与调试
+
+### 5.1 常见编译错误
+
+**错误1：模板参数不匹配**
+```cpp
+template<typename T>
+T add(T a, T b) { return a + b; }
+
+add(5, 3.14);  // ❌ error: 类型不一致
+add<int>(5, 3.14);  // ✅ 显式指定类型
+```
+
+**错误2：忘记类模板后的 `<T>`**
+```cpp
 template<typename T>
 class MyClass {
-public:
-    // 嵌套类型
-    typedef T InternalType;
-    
-    // 使用typename明确这是类型名
-    typename T::SubType* createObject() {
-        // ...
-        return nullptr;
-    }
+    void func();
 };
-```
 
----
+// ❌ 错误
+void MyClass::func() { }
 
-## 5. 模板与STL的关系
-
-理解模板后，你就能更好地理解STL（标准模板库）了：
-
-| STL组件 | 基于模板的实现 |
-|---------|---------------|
-| `vector<T>` | 动态数组，存放任意类型T |
-| `list<T>` | 双向链表 |
-| `map<K, V>` | 键值对映射，K是键类型，V是值类型 |
-| `set<T>` | 集合，不允许重复 |
-| `stack<T>` | 栈 |
-| `queue<T>` | 队列 |
-
-**举例 - vector 的简化原理**：
-```cpp
-// vector 的简化版实现（帮你理解原理）
+// ✅ 正确
 template<typename T>
-class vector {
-private:
-    T* data;      // 指向动态数组的指针
-    size_t size;  // 元素个数
-    size_t capacity; // 容量
-    
-public:
-    void push_back(const T& value);  // 添加元素
-    T& operator[](size_t index);      // 下标访问
-    // ...其他成员函数
-};
+void MyClass<T>::func() { }
 ```
 
----
+**错误3：模板定义不在头文件中**
+```cpp
+// ❌ 常见错误
+// .h文件只有声明
+// .cpp文件有实现
+// 链接时会报错：undefined reference
+```
 
-## 6. 常见错误与注意事项
+### 5.2 调试技巧
 
-### 6.1 常见错误
+1. **先让普通版本工作**：先写一个 `int` 版本的代码，确认逻辑正确后再改成模板。
 
-| 错误类型 | 示例 | 说明 |
-|---------|------|------|
-| 类型不匹配 | `max(1, 2.0)` | 两个参数类型不一致，需要显式指定或类型转换 |
-| 模板参数推导失败 | `swap(a, b)` 其中 a 和 b 类型不同 | 编译器无法推导类型 |
-| 忘记模板参数 | `MyClass obj;` | 类模板使用时必须指定类型参数 |
+2. **使用 `static_assert`**（C++11）：
+   ```cpp
+   template<typename T>
+   T divide(T a, T b) {
+       static_assert(std::is_integral<T>::value, "T必须是整数类型");
+       return a / b;
+   }
+   ```
 
-### 6.2 注意事项
-
-1. **模板定义要完整**：编译器需要看到完整的模板定义才能实例化
-2. **模板不编译成具体代码**：模板本身不生成可执行代码，只有被调用时才会生成
-3. **模板会增加编译时间**：但运行时代价与普通函数相同
-4. **调试时注意查看实例化错误**：模板错误信息可能很长，但耐心看总能定位问题
-
-### 6.3 模板错误信息太长怎么办？
-
-当你写错模板代码时，编译器会生成很长的错误信息。可以尝试：
-
-1. 使用 IDE（如CLion、VS Code）的提示功能
-2. 简化错误信息：找到第一个错误，通常那是根源
-3. 用简单的测试用例缩小问题范围
+3. **查看模板实例化错误信息**：编译器会显示生成的代码，很长但能帮助定位问题。
 
 ---
 
-## 7. 练习建议
+## 6. 练习建议
 
 ### 基础练习
 
-1. **练习1**：编写一个函数模板 `findMax`，找出数组中的最大值
+1. **实现一个 `Swap` 函数模板**：交换两个同类型变量的值。
 
-```cpp
-// 提示：函数签名
-template<typename T>
-T findMax(T arr[], int n);
-```
+2. **实现一个 `ArrayMax` 函数模板**：返回数组中的最大元素。
 
-2. **练习2**：实现一个类模板 `Pair`，存储两个任意类型的值
-
-3. **练习3**：编写一个函数模板 `sort`，对任意类型的数组排序（可以使用简单的冒泡排序）
+3. **实现一个 `Stack` 类模板**：包含 `push`、`pop`、`isEmpty` 方法。
 
 ### 进阶练习
 
-4. **练习4**：实现一个模板类 `CircularBuffer`，循环缓冲区
+4. **实现一个 `Pair` 类模板**：存储一对数据，提供 `getFirst()` 和 `getSecond()` 方法。
 
-5. **练习5**：实现模板特化，处理字符指针的特化版本
+5. **实现一个 `Matrix` 类模板**：支持矩阵转置和乘法运算。
 
-6. **练习6**：使用非类型模板参数，实现一个固定大小的矩阵类
+6. **实现排序算法模板**：实现一个通用的 `sort` 函数模板（可以先实现冒泡排序）。
 
-### 答案参考
+### 思考题
 
-<details>
-<summary>练习1参考答案：findMax</summary>
+7. 什么时候应该用模板？什么时候应该用普通函数重载？
 
-```cpp
-#include <iostream>
-using namespace std;
-
-template<typename T>
-T findMax(T arr[], int n) {
-    T maxVal = arr[0];
-    for (int i = 1; i < n; i++) {
-        if (arr[i] > maxVal) {
-            maxVal = arr[i];
-        }
-    }
-    return maxVal;
-}
-
-int main() {
-    int intArr[] = {3, 7, 2, 9, 4};
-    cout << "最大值: " << findMax(intArr, 5) << endl;
-    
-    double doubleArr[] = {3.14, 2.71, 1.41, 1.73};
-    cout << "最大值: " << findMax(doubleArr, 4) << endl;
-    
-    return 0;
-}
-```
-</details>
+8. 模板会让代码变慢还是变快？
 
 ---
 
 ## 📝 本章小结
 
-| 概念 | 说明 |
-|------|------|
-| **函数模板** | 用 `template<typename T>` 声明，编写与类型无关的函数 |
-| **类模板** | 用 `template<typename T>` 声明，定义支持多种类型的类 |
-| **类型参数** | 用 `typename T` 或 `class T` 声明，代表任意类型 |
-| **非类型参数** | 用具体值作为模板参数，如 `int N` |
-| **模板特化** | 为特定类型提供特殊实现 |
-| **模板实例化** | 编译器根据调用时的类型生成具体代码 |
+1. **模板是C++泛型编程的基础**，让我们写出与类型无关的代码。
 
-**核心思想**：模板实现了C++的**泛型编程**，让你"一次编写，处处适用"。
+2. **函数模板**用 `template<typename T>` 定义，编译器会自动实例化。
+
+3. **类模板**让我们可以创建支持多种类型的类。
+
+4. **模板参数**可以是类型参数，也可以是非类型参数（具体值）。
+
+5. **模板代码通常放在头文件中**，因为需要看到完整定义才能实例化。
 
 ---
 
