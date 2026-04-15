@@ -10,6 +10,15 @@
 2. [线性表](#2-线性表)
 3. [查找算法](#3-查找算法)
 4. [排序算法](#4-排序算法)
+   - [4.1 什么是排序？](#41-什么是排序)
+   - [4.2 插入排序](#42-插入排序)
+   - [4.3 冒泡排序](#43-冒泡排序)
+   - [4.4 选择排序](#44-选择排序)
+   - [4.5 对半插入排序](#45-对半插入排序二分插入排序)
+   - [4.6 希尔排序](#46-希尔排序缩小增量排序)
+   - [4.7 快速排序](#47-快速排序)
+   - [4.8 归并排序](#48-归并排序分而治之)
+   - [4.9 排序算法对比](#49-排序算法对比)
 5. [动态内存分配](#5-动态内存分配)
 6. [综合应用示例](#6-综合应用示例)
 7. [常见问题与优化](#7-常见问题与优化)
@@ -661,13 +670,426 @@ int main() {
 结果: [8, 18, 24, 45, 64]
 ```
 
-### 4.5 排序算法对比
+### 4.5 对半插入排序（二分插入排序）
+
+**概念**：对半插入排序是对直接插入排序的优化。在插入元素时，使用**折半查找（二分查找）**来寻找插入位置，而不是逐个比较。
+
+**与直接插入排序的区别**：
+- **直接插入排序**：从已排好序的部分从后往前逐个比较，最坏情况比较 i 次
+- **对半插入排序**：使用折半查找定位，最多比较 log₂i 次，但元素移动次数不变
+
+**通俗理解**：就像在有序数组中查字典，用折半法快速定位插入位置，而不是从第一页开始一页一页翻。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 对半插入排序（Binary Insertion Sort）
+template<typename T>
+void BinaryInsertSort(T arr[], int n) {
+    T temp;
+    int low, high, mid, i, j;
+    
+    // 从第二个元素开始（假设第一个已经有序）
+    for (i = 1; i < n; i++) {
+        temp = arr[i];      // 暂存待插入元素
+        low = 0;
+        high = i - 1;       // 已排序部分的范围是 [0, i-1]
+        
+        // === 折半查找：找到插入位置 ===
+        while (low <= high) {
+            mid = (low + high) / 2;
+            if (temp < arr[mid]) {
+                high = mid - 1;  // 目标在左半部分
+            } else {
+                low = mid + 1;   // 目标在右半部分
+            }
+        }
+        // 循环结束后，low 就是插入位置
+        
+        // === 元素后移，空出插入位置 ===
+        for (j = i - 1; j >= low; j--) {
+            arr[j + 1] = arr[j];
+        }
+        
+        arr[low] = temp;   // 插入元素
+    }
+}
+
+// 打印数组
+template<typename T>
+void PrintArray(T arr[], int n) {
+    for (int i = 0; i < n; i++) {
+        cout << arr[i] << " ";
+    }
+    cout << endl;
+}
+
+int main() {
+    int arr[] = {64, 34, 25, 12, 22, 11, 90};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    
+    cout << "排序前: ";
+    PrintArray(arr, n);
+    
+    BinaryInsertSort(arr, n);
+    
+    cout << "排序后: ";
+    PrintArray(arr, n);
+    
+    return 0;
+}
+```
+
+**排序过程演示**（将25插入已排序部分 [34, 64]）：
+```
+已排序: [34, 64]
+待插入: 25
+
+折半查找过程:
+  low=0, high=1, mid=0 → arr[0]=34 > 25 → high=mid-1=-1
+  low=0, high=-1 → 退出循环，插入位置=0
+
+后移并插入:
+  [34, 64] → [34, 34, 64] → [25, 34, 64]
+```
+
+**注意与折半查找的区别**：
+- 折半查找：在**整个有序数组**中找目标，返回"是否存在"
+- 对半插入排序中的查找：在**已排序前缀**中找插入位置，找到第一个比它小的位置之后
+
+**时间复杂度分析**：
+| 步骤 | 直接插入排序 | 对半插入排序 |
+|------|-------------|-------------|
+| 比较次数 | O(n²)（最坏） | O(n log n)（查找）+ O(n²)（移动）|
+| 移动次数 | O(n²) | O(n²)（不变）|
+| 总复杂度 | O(n²) | O(n²)（整体仍是）|
+
+**为什么比较次数减少了，整体复杂度还是 O(n²)？**
+因为元素**移动**（后移）次数仍然是 O(n²)，这才是瓶颈所在。对半插入排序的优势在于**减少了比较次数**，特别是在数据量较大时。
+
+**什么时候用？**
+- 数据量较大、移动操作成本高时（如磁盘排序、大对象排序）
+- 对比较操作敏感的场景
+
+### 4.6 希尔排序（缩小增量排序）
+
+**思想**：改进自插入排序，通过设置**增量（gap）**将数组分成多个子序列，对每个子序列进行插入排序，然后逐步缩小增量，直到增量为1。
+
+**通俗理解**：就像先按姓氏分组排序，再按名字排序，最后整体有序。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 希尔排序（模板函数版本）
+template<typename T>
+void ShellSort(T slist[], int last) {
+    int gap = (last + 1) / 2;  // 初始增量
+    
+    while (gap > 0) {
+        // 对每个子序列进行插入排序
+        for (int i = gap; i <= last; i++) {
+            T temp = slist[i];
+            int j = i;
+            
+            // 在子序列中向后查找插入位置
+            while (j >= gap && temp < slist[j - gap]) {
+                slist[j] = slist[j - gap];  // 元素后移
+                j -= gap;
+            }
+            slist[j] = temp;  // 插入元素
+        }
+        
+        gap /= 2;  // 缩小增量
+    }
+}
+
+// 打印数组
+template<typename T>
+void PrintArray(T arr[], int n) {
+    for (int i = 0; i < n; i++) {
+        cout << arr[i] << " ";
+    }
+    cout << endl;
+}
+
+int main() {
+    int arr[] = {20, 26, 49, 21, 15, 6, 9};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    
+    cout << "排序前: ";
+    PrintArray(arr, n);
+    
+    ShellSort(arr, n - 1);
+    
+    cout << "排序后: ";
+    PrintArray(arr, n);
+    
+    return 0;
+}
+```
+
+**排序过程演示**（以 {20, 26, 49, 21, 15, 6, 9} 为例）：
+```
+初始数组: [20, 26, 49, 21, 15, 6, 9]
+          (N=7, 初始增量gap=7/2=4)
+
+第1轮(gap=4):
+  分组: Group1=[20,6], Group2=[26,9], Group3=[49,15], Group4=[21]
+  组内排序后: [6, 9, 15, 20, 21, 26, 49]
+
+第2轮(gap=2):
+  分组: Group1=[6,15,21], Group2=[9,20,26]
+  组内排序后: [6, 9, 15, 20, 21, 26, 49]
+
+第3轮(gap=1):
+  直接插入排序: [6, 9, 15, 20, 21, 26, 49]
+
+结果: [6, 9, 15, 20, 21, 26, 49]
+```
+
+**重要特点**：
+- 每一趟排序包含若干子序列，第一个子序列第一个元素是0号，第二个元素是gap号
+- 每趟排序从第一个子序列开始直接插入排序，穿插完成所有子序列
+- 增量逐步缩小（gap/=2），直到为1时就是直接插入排序
+
+**复杂度**：平均 O(n^1.3)，最坏 O(n²)，比直接插入排序性能好。
+
+### 4.7 快速排序
+
+**思想**：从数组中选择一个**基准元素（pivot）**，将数组分为两部分：左边所有元素小于基准，右边所有元素大于等于基准。然后对左右两部分递归执行同样的操作。
+
+**通俗理解**：就像排队找座位，让每个人先和一个"标准人"比较，比他矮的站左边，比他高的站右边，然后再分别在这两组里找标准人分组。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 一趟快速排序（分割函数）
+template<typename T>
+int Partition(T slist[], int low, int high) {
+    T temp = slist[low];  // 基准元素
+    int i = low, j = high;
+    
+    while (i < j) {
+        // 从右往左找第一个小于基准的元素
+        while (temp <= slist[j] && i < j) j--;
+        if (i < j) {
+            slist[i] = slist[j];  // 移到左边
+            i++;
+        }
+        
+        // 从左往右找第一个大于基准的元素
+        while (temp > slist[i] && i < j) i++;
+        if (i < j) {
+            slist[j] = slist[i];  // 移到右边
+            j--;
+        }
+    }
+    
+    slist[i] = temp;  // 基准元素归位
+    return i;  // 返回基准位置
+}
+
+// 快速排序（递归版本）
+template<typename T>
+void QuickSort(T slist[], int low, int high) {
+    if (low < high) {
+        int pivotPos = Partition(slist, low, high);  // 分割
+        
+        QuickSort(slist, low, pivotPos - 1);   // 对左半部分排序
+        QuickSort(slist, pivotPos + 1, high);  // 对右半部分排序
+    }
+}
+
+// 打印数组
+template<typename T>
+void PrintArray(T arr[], int n) {
+    for (int i = 0; i < n; i++) {
+        cout << arr[i] << " ";
+    }
+    cout << endl;
+}
+
+int main() {
+    int arr[] = {49, 38, 65, 97, 76, 13, 27};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    
+    cout << "排序前: ";
+    PrintArray(arr, n);
+    
+    QuickSort(arr, 0, n - 1);
+    
+    cout << "排序后: ";
+    PrintArray(arr, n);
+    
+    return 0;
+}
+```
+
+**排序过程演示**（以 {49, 38, 65, 97, 76, 13, 27} 为例）：
+```
+初始: [49, 38, 65, 97, 76, 13, 27]
+      ↑
+     pivot
+
+第1趟分割:
+  基准=49，从右往左找小于49的: 27 < 49 → 移到左边
+  [27, 38, 65, 97, 76, 13, 49]
+                   ↑
+  从左往右找大于49的: 65 > 49 → 移到右边
+  [27, 38, 49, 97, 76, 13, 65]
+        ↑
+  继续...直到i=j
+  基准归位: [27, 38, 13, 49, 76, 97, 65]
+                   ↑
+           pivot=49已归位
+
+递归处理左右两部分:
+  左: [27, 38, 13] → 基准38 → [27, 13, 38]
+  右: [76, 97, 65] → 基准76 → [65, 76, 97]
+
+最终: [13, 27, 38, 49, 65, 76, 97]
+```
+
+**特点**：
+- 一趟排序后，基准元素在准确的排序位置上
+- 递归处理左右两部分，直到数组大小为1
+- 平均性能很好，是应用最广泛的排序算法
+
+**复杂度**：平均 O(n log n)，最坏 O(n²)，空间 O(log n)。
+
+### 4.8 归并排序（分而治之）
+
+**思想**：采用**分治法**策略：
+1. **分**：把大的数组分成两个小的数组，递归地分割，直到每个子数组只有一个元素（有序）
+2. **治**：将两个有序的小数组合并成一个有序的大数组
+
+**通俗理解**：就像把一副牌分成两堆排好序，再把两堆有序的牌合并成一堆。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 合并两个有序数组
+template<typename T>
+void Merge(T slist[], T temp[], int low, int mid, int high) {
+    // slist[low...mid] 和 slist[mid+1...high] 是两个有序数组
+    int i = low, j = mid + 1, k = low;
+    
+    // 合并到临时数组
+    while (i <= mid && j <= high) {
+        if (slist[i] <= slist[j]) {
+            temp[k++] = slist[i++];
+        } else {
+            temp[k++] = slist[j++];
+        }
+    }
+    
+    // 处理剩余元素
+    while (i <= mid) {
+        temp[k++] = slist[i++];
+    }
+    while (j <= high) {
+        temp[k++] = slist[j++];
+    }
+    
+    // 复制回原数组
+    for (int i = low; i <= high; i++) {
+        slist[i] = temp[i];
+    }
+}
+
+// 归并排序递归函数
+template<typename T>
+void MergeSort(T slist[], T temp[], int low, int high) {
+    if (low < high) {
+        int mid = (low + high) / 2;  // 取中点分割
+        
+        MergeSort(slist, temp, low, mid);      // 对左半部分排序
+        MergeSort(slist, temp, mid + 1, high); // 对右半部分排序
+        Merge(slist, temp, low, mid, high);    // 合并两个有序数组
+    }
+}
+
+// 打印数组
+template<typename T>
+void PrintArray(T arr[], int n) {
+    for (int i = 0; i < n; i++) {
+        cout << arr[i] << " ";
+    }
+    cout << endl;
+}
+
+int main() {
+    int arr[] = {26, 18, 20, 49, 21, 9, 6, 15};
+    int n = sizeof(arr) / sizeof(arr[0]);
+    int* temp = new int[n];  // 临时数组
+    
+    cout << "排序前: ";
+    PrintArray(arr, n);
+    
+    MergeSort(arr, temp, 0, n - 1);
+    
+    cout << "排序后: ";
+    PrintArray(arr, n);
+    
+    delete[] temp;
+    return 0;
+}
+```
+
+**排序过程演示**（分治过程）：
+```
+初始: [26, 18, 20, 49, 21, 9, 6, 15]
+
+分（分割过程）:
+  [26, 18, 20, 49 | 21, 9, 6, 15]
+  [26, 18 | 20, 49]  [21, 9 | 6, 15]
+  [26 | 18]  [20 | 49]  [21 | 9]  [6 | 15]
+  
+  现在每个子数组只有一个元素（天然有序）
+
+合（合并过程）:
+  [18, 26]  [20, 49]  [9, 21]  [6, 15]
+  [18, 20, 26, 49]  [6, 9, 15, 21]
+  [6, 9, 15, 18, 20, 21, 26, 49]
+
+结果: [6, 9, 15, 18, 20, 21, 26, 49]
+```
+
+**合并算法核心**（两个有序数组合并为一个有序数组）：
+```
+有序数组A: [18, 26]  有序数组B: [6, 9, 15, 21]
+
+比较过程:
+  18 vs 6  → 取6 → temp=[6]
+  18 vs 9  → 取9 → temp=[6,9]
+  18 vs 15 → 取15 → temp=[6,9,15]
+  18 vs 21 → 取18 → temp=[6,9,15,18]
+  26 vs 21 → 取21 → temp=[6,9,15,18,21]
+  A已空 → 取26 → temp=[6,9,15,18,21,26]
+
+合并完成: [6, 9, 15, 18, 21, 26]
+```
+
+**特点**：
+- 稳定排序：相等的元素相对位置不变
+- 需要额外的 O(n) 空间存储临时数组
+- 适合外部排序（如大文件排序）
+
+**复杂度**：无论最好、最坏、平均都是 O(n log n)。
+
+### 4.9 排序算法对比
 
 | 算法 | 时间复杂度 | 空间复杂度 | 稳定性 |
 |------|------------|------------|--------|
 | 直接插入排序 | O(n²) | O(1) | 稳定 |
+| 对半插入排序 | O(n²) | O(1) | 稳定 |
 | 冒泡排序 | O(n²) | O(1) | 稳定 |
 | 选择排序 | O(n²) | O(1) | 不稳定 |
+| 希尔排序 | O(n^1.3) | O(1) | 不稳定 |
 | 快速排序 | O(n log n) | O(log n) | 不稳定 |
 | 归并排序 | O(n log n) | O(n) | 稳定 |
 | 堆排序 | O(n log n) | O(1) | 不稳定 |
@@ -782,6 +1204,397 @@ p3数组: 0 10 20 30
 - **配对使用**：`new` 和 `delete` 配对，`new[]` 和 `delete[]` 配对
 - **只释放一次**：同一块内存不能释放两次
 - **释放后置空**：释放后将指针设为 `nullptr`，避免空悬指针
+
+### 5.5 内存泄漏 - 最常见的问题
+
+**内存泄漏（Memory Leak）**：申请了内存但忘记释放，导致内存浪费。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+void badFunction() {
+    int* p = new int[100];  // 申请内存
+    // ... 使用p做各种操作
+    // 忘记释放！函数结束后p被销毁，但内存没释放
+}  // 内存泄漏！
+
+void goodFunction() {
+    int* p = new int[100];
+    // ... 使用p做各种操作
+    delete[] p;  // 释放内存
+    p = nullptr;  // 置空，避免空悬指针
+}  // 安全！
+
+int main() {
+    // 模拟内存泄漏
+    for (int i = 0; i < 1000000; i++) {
+        badFunction();  // 每次调用泄漏 100*4=400字节
+    }
+    cout << "程序结束，泄漏了约400MB内存！" << endl;
+    return 0;
+}
+```
+
+**内存泄漏的常见原因**：
+1. 忘记写 `delete`
+2. 指针被重新赋值，原内存无法访问
+3. 异常导致 `delete` 未执行
+
+```cpp
+// 常见错误：指针被重新赋值
+int* p = new int[10];
+p = new int[20];  // 错误！第一个数组泄漏了
+```
+
+### 5.6 空悬指针 - 危险的错误
+
+**空悬指针（Dangling Pointer）**：指向已被释放的内存的指针。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    int* p = new int(42);
+    cout << "p的值: " << *p << endl;
+
+    delete p;  // 释放内存
+    // p现在是指向"空"的指针，称为空悬指针
+
+    // cout << *p << endl;  // 危险！访问已释放的内存
+
+    p = nullptr;  // 安全做法：释放后将指针置空
+    // if (p != nullptr) cout << *p << endl;  // 这样更安全
+
+    return 0;
+}
+```
+
+### 5.7 动态数组 - 实战应用
+
+**场景**：读取用户输入数量的成绩并计算平均分。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    int n;
+    cout << "请输入学生人数: ";
+    cin >> n;
+
+    // 动态分配数组，大小由运行时决定
+    double* scores = new double[n];
+
+    // 输入成绩
+    for (int i = 0; i < n; i++) {
+        cout << "第" << i + 1 << "个学生成绩: ";
+        cin >> scores[i];
+    }
+
+    // 计算平均分
+    double sum = 0;
+    for (int i = 0; i < n; i++) {
+        sum += scores[i];
+    }
+    cout << "平均分: " << sum / n << endl;
+
+    // 重要：释放内存！
+    delete[] scores;
+    scores = nullptr;
+
+    return 0;
+}
+```
+
+**运行示例**：
+```
+请输入学生人数: 5
+第1个学生成绩: 85
+第2个学生成绩: 92
+第3个学生成绩: 78
+第4个学生成绩: 88
+第5个学生成绩: 95
+平均分: 87.6
+```
+
+### 5.8 二维动态数组
+
+**分配和释放方法**：
+
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    int m, n;
+    cout << "请输入矩阵行数和列数: ";
+    cin >> m >> n;
+
+    // 第一步：分配指向每一行的指针数组
+    double** matrix = new double*[m];
+
+    // 第二步：为每一行分配列
+    for (int i = 0; i < m; i++) {
+        matrix[i] = new double[n];
+    }
+
+    // 使用矩阵
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            matrix[i][j] = i * n + j;
+        }
+    }
+
+    // 打印矩阵
+    cout << "矩阵内容:" << endl;
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            cout << matrix[i][j] << "\t";
+        }
+        cout << endl;
+    }
+
+    // 释放：先释放每一行
+    for (int i = 0; i < m; i++) {
+        delete[] matrix[i];
+    }
+    // 再释放指针数组本身
+    delete[] matrix;
+    matrix = nullptr;
+
+    return 0;
+}
+```
+
+**内存分配图解**：
+```
+matrix (二级指针)
+    │
+    ├── matrix[0] ──> [col0] [col1] [col2] ... (new double[n])
+    ├── matrix[1] ──> [col0] [col1] [col2] ... (new double[n])
+    ├── matrix[2] ──> [col0] [col1] [col2] ... (new double[n])
+    ...
+```
+
+### 5.9 动态内存分配与构造函数/析构函数
+
+对于类的动态分配，会自动调用构造函数和析构函数：
+
+```cpp
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+class Student {
+private:
+    char* name;
+    int age;
+
+public:
+    // 构造函数
+    Student(const char* n, int a) {
+        age = a;
+        name = new char[strlen(n) + 1];  // 动态分配name
+        strcpy(name, n);
+        cout << "构造函数: 创建学生 " << name << endl;
+    }
+
+    // 析构函数
+    ~Student() {
+        cout << "析构函数: 释放学生 " << name << endl;
+        delete[] name;  // 释放动态分配的内存
+        name = nullptr;
+    }
+
+    void show() {
+        cout << "姓名: " << name << ", 年龄: " << age << endl;
+    }
+};
+
+int main() {
+    // 动态创建对象
+    Student* s1 = new Student("张三", 20);
+    Student* s2 = new Student("李四", 21);
+
+    s1->show();
+    s2->show();
+
+    // 动态销毁对象
+    delete s1;
+    delete s2;
+
+    return 0;
+}
+```
+
+**运行结果**：
+```
+构造函数: 创建学生 张三
+构造函数: 创建学生 李四
+姓名: 张三, 年龄: 20
+姓名: 李四, 年龄: 21
+析构函数: 释放学生 张三
+析构函数: 释放学生 李四
+```
+
+### 5.10 常见错误与注意事项
+
+| 错误类型 | 示例 | 后果 |
+|----------|------|------|
+| **忘记delete** | `int* p = new int[100];` | 内存泄漏 |
+| **重复delete** | `delete p; delete p;` | 程序崩溃 |
+| **数组用delete** | `int* p = new int[10]; delete p;` | 未定义行为 |
+| **空悬指针** | `delete p; cout << *p;` | 访问已释放内存 |
+| **指针赋值覆盖** | `p = new int[10]; p = new int[20];` | 第一个数组泄漏 |
+
+**最佳实践**：
+```cpp
+// 推荐写法
+#include <memory>  // C++智能指针
+
+int* p = new int[100];
+// ... 使用p
+delete[] p;
+p = nullptr;  // 置空
+
+// 更推荐：C++11智能指针（自动管理内存）
+#include <memory>
+auto p = make_unique<int[]>(100);  // 自动释放
+// 不需要手动delete
+```
+
+---
+
+## 6. 综合应用示例
+>>>>>>> 8d0cccc (docs: 第4章补充对半插入排序算法)
+
+### 5.1 为什么要动态内存分配？
+
+在介绍动态内存分配之前，我们先回顾一下C++的内存布局：
+
+| 内存区域 | 存储内容 | 特点 |
+|----------|----------|------|
+| **代码区** | 程序代码 | 只读 |
+| **全局数据区** | 全局变量、静态变量 | 程序启动时分配，程序结束时释放 |
+| **栈区** | 函数局部变量 | 自动分配、自动释放 |
+| **堆区（自由存储区）** | 动态分配的内存 | 手动分配、手动释放 |
+
+**通俗理解**：
+- **栈区**就像自助餐厅的餐盘，用完自动归还，大小固定
+- **堆区**就像租房子，可以随时申请和退租，大小可以灵活变化
+
+### 5.2 为什么需要动态内存？
+
+```cpp
+// 问题：数组大小必须是编译时确定的常量
+int arr[100];  // OK，大小固定
+
+// 问题：编译时不知道需要多大
+int n;
+cin >> n;  // 用户输入大小
+int arr[n];  // C++中这是变长数组(VLA)，不是标准用法！
+
+// 解决方案：使用动态内存分配
+int n;
+cin >> n;
+int* arr = new int[n];  // 运行时根据用户输入决定大小
+```
+
+**动态内存的优势**：
+1. **大小可变**：根据运行时需求分配
+2. **生命周期可控**：手动管理内存的创建和销毁
+3. **避免浪费**：按需分配，不需要的就不分配
+
+### 5.3 new运算符 - 申请内存
+
+`new` 运算符用于在堆区（自由存储区）申请内存。
+
+**基本语法**：
+```cpp
+// 分配单个变量
+指针变量 = new 类型名;
+指针变量 = new 类型名(初始值);
+
+// 分配数组
+指针变量 = new 类型名[元素个数];
+```
+
+**代码示例**：
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    // 1. 动态分配单个int变量（不初始化）
+    int* p1 = new int;
+    cout << "p1初始值: " << *p1 << endl;  // 未初始化，可能是随机值
+
+    // 2. 动态分配单个int变量（初始化为4）
+    int* p2 = new int(4);
+    cout << "p2值: " << *p2 << endl;  // 输出: 4
+
+    // 3. 动态分配4个int的数组
+    int* p3 = new int[4];
+    cout << "p3数组: ";
+    for (int i = 0; i < 4; i++) {
+        p3[i] = i * 10;  // 初始化数组
+        cout << p3[i] << " ";
+    }
+    cout << endl;
+
+    // 使用完后必须释放内存！
+    delete p1;
+    delete p2;
+    delete[] p3;  // 数组用 delete[]
+
+    return 0;
+}
+```
+
+**运行结果**：
+```
+p1初始值: 0（或随机值）
+p2值: 4
+p3数组: 0 10 20 30
+```
+
+### 5.4 delete运算符 - 释放内存
+
+<<<<<<< HEAD
+`delete` 运算符用于释放动态分配的内存。
+
+**语法规则**：
+| 分配方式 | 释放语法 |
+=======
+## 7. 常见问题与优化
+
+### 7.1 选择合适的数据结构
+
+| 场景 | 推荐结构 |
+|------|----------|
+| 需要快速随机访问 | 数组/顺序表 |
+| 频繁插入删除 | 链表 |
+| 需要保持有序 | 有序数组 |
+| 需要快速查找 | 二叉搜索树/哈希表 |
+
+### 7.2 排序算法选择建议
+
+| 数据规模 | 推荐算法 |
+>>>>>>> 8d0cccc (docs: 第4章补充对半插入排序算法)
+|----------|----------|
+| `new 类型名` | `delete 指针` |
+| `new 类型名[个数]` | `delete[] 指针` |
+
+<<<<<<< HEAD
+**重要原则**：
+- **配对使用**：`new` 和 `delete` 配对，`new[]` 和 `delete[]` 配对
+- **只释放一次**：同一块内存不能释放两次
+- **释放后置空**：释放后将指针设为 `nullptr`，避免空悬指针
+=======
+### 7.3 时间复杂度速查表
+>>>>>>> 8d0cccc (docs: 第4章补充对半插入排序算法)
 
 ### 5.5 内存泄漏 - 最常见的问题
 
