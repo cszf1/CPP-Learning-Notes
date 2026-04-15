@@ -10,8 +10,9 @@
 2. [线性表](#2-线性表)
 3. [查找算法](#3-查找算法)
 4. [排序算法](#4-排序算法)
-5. [综合应用示例](#5-综合应用示例)
-6. [常见问题与优化](#6-常见问题与优化)
+5. [动态内存分配](#5-动态内存分配)
+6. [综合应用示例](#6-综合应用示例)
+7. [常见问题与优化](#7-常见问题与优化)
 
 ---
 
@@ -675,264 +676,248 @@ int main() {
 
 ---
 
-## 5. 综合应用示例
+## 5. 动态内存分配
 
-### 5.1 有序表类模板
+### 5.1 为什么要动态内存分配？
 
-结合折半查找的有序顺序表：
+在介绍动态内存分配之前，我们先回顾一下C++的内存布局：
 
+| 内存区域 | 存储内容 | 特点 |
+|----------|----------|------|
+| **代码区** | 程序代码 | 只读 |
+| **全局数据区** | 全局变量、静态变量 | 程序启动时分配，程序结束时释放 |
+| **栈区** | 函数局部变量 | 自动分配、自动释放 |
+| **堆区（自由存储区）** | 动态分配的内存 | 手动分配、手动释放 |
+
+**通俗理解**：
+- **栈区**就像自助餐厅的餐盘，用完自动归还，大小固定
+- **堆区**就像租房子，可以随时申请和退租，大小可以灵活变化
+
+### 5.2 为什么需要动态内存？
+
+```cpp
+// 问题：数组大小必须是编译时确定的常量
+int arr[100];  // OK，大小固定
+
+// 问题：编译时不知道需要多大
+int n;
+cin >> n;  // 用户输入大小
+int arr[n];  // C++中这是变长数组(VLA)，不是标准用法！
+
+// 解决方案：使用动态内存分配
+int n;
+cin >> n;
+int* arr = new int[n];  // 运行时根据用户输入决定大小
+```
+
+**动态内存的优势**：
+1. **大小可变**：根据运行时需求分配
+2. **生命周期可控**：手动管理内存的创建和销毁
+3. **避免浪费**：按需分配，不需要的就不分配
+
+### 5.3 new运算符 - 申请内存
+
+`new` 运算符用于在堆区（自由存储区）申请内存。
+
+**基本语法**：
+```cpp
+// 分配单个变量
+指针变量 = new 类型名;
+指针变量 = new 类型名(初始值);
+
+// 分配数组
+指针变量 = new 类型名[元素个数];
+```
+
+**代码示例**：
 ```cpp
 #include <iostream>
 using namespace std;
 
-// 有序表类模板
-template<typename T, int MAXSIZE>
-class OrderedList {
-private:
-    T data[MAXSIZE];
-    int last;
-
-public:
-    OrderedList() { last = -1; }
-    
-    int Length() const { return last + 1; }
-    bool IsEmpty() const { return last == -1; }
-    bool IsFull() const { return last == MAXSIZE - 1; }
-    
-    // 折半查找（迭代版本）
-    int BinarySearch(const T& key) const {
-        int low = 0, high = last, mid;
-        
-        while (low <= high) {
-            mid = (low + high) / 2;
-            if (data[mid] == key) {
-                return mid;
-            } else if (data[mid] > key) {
-                high = mid - 1;
-            } else {
-                low = mid + 1;
-            }
-        }
-        return -1;
-    }
-    
-    // 插入（保持有序）
-    bool Insert(const T& x) {
-        if (IsFull()) return false;
-        
-        int i = 0;
-        while (i <= last && data[i] < x) {
-            i++;
-        }
-        
-        // 从后往前移动
-        for (int j = last; j >= i; j--) {
-            data[j + 1] = data[j];
-        }
-        data[i] = x;
-        last++;
-        return true;
-    }
-    
-    // 删除
-    bool Remove(const T& x) {
-        int pos = BinarySearch(x);
-        if (pos == -1) return false;
-        
-        for (int i = pos; i < last; i++) {
-            data[i] = data[i + 1];
-        }
-        last--;
-        return true;
-    }
-    
-    // 打印
-    void Print() const {
-        for (int i = 0; i <= last; i++) {
-            cout << data[i] << " ";
-        }
-        cout << endl;
-    }
-};
-
-// 学生类
-class Student {
-public:
-    int id;
-    string name;
-    float score;
-    
-    Student(int i = 0, string n = "", float s = 0) 
-        : id(i), name(n), score(s) {}
-};
-
 int main() {
-    // 整数有序表
-    OrderedList<int, 100> intList;
-    int arr[] = {3, 7, 2, 9, 1, 5, 8, 4};
-    
-    for (int i = 0; i < 8; i++) {
-        intList.Insert(arr[i]);
+    // 1. 动态分配单个int变量（不初始化）
+    int* p1 = new int;
+    cout << "p1初始值: " << *p1 << endl;  // 未初始化，可能是随机值
+
+    // 2. 动态分配单个int变量（初始化为4）
+    int* p2 = new int(4);
+    cout << "p2值: " << *p2 << endl;  // 输出: 4
+
+    // 3. 动态分配4个int的数组
+    int* p3 = new int[4];
+    cout << "p3数组: ";
+    for (int i = 0; i < 4; i++) {
+        p3[i] = i * 10;  // 初始化数组
+        cout << p3[i] << " ";
     }
-    
-    cout << "有序数组: ";
-    intList.Print();
-    
-    cout << "查找7: " << intList.BinarySearch(7) << endl;
-    cout << "查找6: " << intList.BinarySearch(6) << endl;
-    
-    intList.Remove(5);
-    cout << "删除5后: ";
-    intList.Print();
-    
+    cout << endl;
+
+    // 使用完后必须释放内存！
+    delete p1;
+    delete p2;
+    delete[] p3;  // 数组用 delete[]
+
     return 0;
 }
 ```
 
-### 5.2 通讯录管理系统（简化版）
-
-```cpp
-#include <iostream>
-#include <string>
-using namespace std;
-
-// 联系人结构
-struct Contact {
-    string name;
-    string phone;
-    string email;
-};
-
-// 通讯录类
-class AddressBook {
-private:
-    Contact contacts[100];
-    int count;
-
-public:
-    AddressBook() { count = 0; }
-    
-    // 添加联系人
-    bool Add(const string& name, const string& phone, const string& email) {
-        if (count >= 100) return false;
-        contacts[count].name = name;
-        contacts[count].phone = phone;
-        contacts[count].email = email;
-        count++;
-        return true;
-    }
-    
-    // 按姓名查找
-    int FindByName(const string& name) {
-        for (int i = 0; i < count; i++) {
-            if (contacts[i].name == name) {
-                return i;
-            }
-        }
-        return -1;
-    }
-    
-    // 显示联系人
-    void Show(int index) {
-        if (index < 0 || index >= count) return;
-        cout << "姓名: " << contacts[index].name << endl;
-        cout << "电话: " << contacts[index].phone << endl;
-        cout << "邮箱: " << contacts[index].email << endl;
-    }
-    
-    // 显示所有
-    void ShowAll() {
-        for (int i = 0; i < count; i++) {
-            Show(i);
-            cout << "---" << endl;
-        }
-    }
-    
-    int GetCount() { return count; }
-};
-
-int main() {
-    AddressBook book;
-    
-    book.Add("张三", "13800138000", "zhangsan@example.com");
-    book.Add("李四", "13900139000", "lisi@example.com");
-    book.Add("王五", "13700137000", "wangwu@example.com");
-    
-    cout << "通讯录共有 " << book.GetCount() << " 个联系人\n" << endl;
-    
-    int pos = book.FindByName("李四");
-    if (pos != -1) {
-        cout << "找到李四:" << endl;
-        book.Show(pos);
-    }
-    
-    return 0;
-}
+**运行结果**：
+```
+p1初始值: 0（或随机值）
+p2值: 4
+p3数组: 0 10 20 30
 ```
 
----
+### 5.4 delete运算符 - 释放内存
 
-## 6. 常见问题与优化
+`delete` 运算符用于释放动态分配的内存。
 
-### 6.1 选择合适的数据结构
-
-| 场景 | 推荐结构 |
-|------|----------|
-| 需要快速随机访问 | 数组/顺序表 |
-| 频繁插入删除 | 链表 |
-| 需要保持有序 | 有序数组 |
-| 需要快速查找 | 二叉搜索树/哈希表 |
-
-### 6.2 排序算法选择建议
-
-| 数据规模 | 推荐算法 |
+**语法规则**：
+| 分配方式 | 释放语法 |
 |----------|----------|
-| n ≤ 100 | 插入排序、选择排序 |
-| n 较大 | 快速排序、归并排序 |
-| 有特殊要求 | 堆排序（空间受限） |
+| `new 类型名` | `delete 指针` |
+| `new 类型名[个数]` | `delete[] 指针` |
 
-### 6.3 时间复杂度速查表
+**重要原则**：
+- **配对使用**：`new` 和 `delete` 配对，`new[]` 和 `delete[]` 配对
+- **只释放一次**：同一块内存不能释放两次
+- **释放后置空**：释放后将指针设为 `nullptr`，避免空悬指针
 
-| n | log₂n | n log₂n | n² |
-|---|-------|---------|-----|
-| 10 | 3 | 33 | 100 |
-| 100 | 7 | 664 | 10,000 |
-| 1000 | 10 | 10,000 | 1,000,000 |
-| 10000 | 13 | 130,000 | 100,000,000 |
+### 5.5 内存泄漏 - 最常见的问题
 
----
+**内存泄漏（Memory Leak）**：申请了内存但忘记释放，导致内存浪费。
 
-## 📝 本章小结
+```cpp
+#include <iostream>
+using namespace std;
 
-1. **线性表**是最基础的数据结构，顺序表用数组实现，支持随机访问。
+void badFunction() {
+    int* p = new int[100];  // 申请内存
+    // ... 使用p做各种操作
+    // 忘记释放！函数结束后p被销毁，但内存没释放
+}  // 内存泄漏！
 
-2. **查找算法**：顺序查找简单但慢O(n)，折半查找快O(log n)但要求数据有序。
+void goodFunction() {
+    int* p = new int[100];
+    // ... 使用p做各种操作
+    delete[] p;  // 释放内存
+    p = nullptr;  // 置空，避免空悬指针
+}  // 安全！
 
-3. **排序算法**：插入、冒泡、选择三种基础排序都是O(n²)，适合小规模数据。
+int main() {
+    // 模拟内存泄漏
+    for (int i = 0; i < 1000000; i++) {
+        badFunction();  // 每次调用泄漏 100*4=400字节
+    }
+    cout << "程序结束，泄漏了约400MB内存！" << endl;
+    return 0;
+}
+```
 
-4. **数据结构选择**：根据实际需求（访问、插入、删除的频率）选择合适的数据结构。
+**内存泄漏的常见原因**：
+1. 忘记写 `delete`
+2. 指针被重新赋值，原内存无法访问
+3. 异常导致 `delete` 未执行
 
-5. **模板让数据结构更通用**：使用类模板可以创建支持多种类型的"通用"数据结构。
+```cpp
+// 常见错误：指针被重新赋值
+int* p = new int[10];
+p = new int[20];  // 错误！第一个数组泄漏了
+```
 
----
+### 5.6 空悬指针 - 危险的错误
 
-## 📚 练习建议
+**空悬指针（Dangling Pointer）**：指向已被释放的内存的指针。
 
-### 基础练习
-1. 实现顺序表的 `逆置` 操作
-2. 实现折半查找的递归版本
-3. 用冒泡排序对数组排序
-4. 实现选择排序
+```cpp
+#include <iostream>
+using namespace std;
 
-### 进阶练习
-5. 实现两个有序表的合并
-6. 实现链表的基本操作（插入、删除、查找）
-7. 实现栈（后进先出）的类模板
+int main() {
+    int* p = new int(42);
+    cout << "p的值: " << *p << endl;
 
-### 综合练习
-8. 实现一个学生成绩管理系统（包含添加、查找、排序功能）
-9. 比较不同排序算法的执行时间
+    delete p;  // 释放内存
+    // p现在是指向"空"的指针，称为空悬指针
 
----
+    // cout << *p << endl;  // 危险！访问已释放的内存
 
-*返回 [主目录](../README.md)*
+    p = nullptr;  // 安全做法：释放后将指针置空
+    // if (p != nullptr) cout << *p << endl;  // 这样更安全
+
+    return 0;
+}
+```
+
+### 5.7 动态数组 - 实战应用
+
+**场景**：读取用户输入数量的成绩并计算平均分。
+
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    int n;
+    cout << "请输入学生人数: ";
+    cin >> n;
+
+    // 动态分配数组，大小由运行时决定
+    double* scores = new double[n];
+
+    // 输入成绩
+    for (int i = 0; i < n; i++) {
+        cout << "第" << i + 1 << "个学生成绩: ";
+        cin >> scores[i];
+    }
+
+    // 计算平均分
+    double sum = 0;
+    for (int i = 0; i < n; i++) {
+        sum += scores[i];
+    }
+    cout << "平均分: " << sum / n << endl;
+
+    // 重要：释放内存！
+    delete[] scores;
+    scores = nullptr;
+
+    return 0;
+}
+```
+
+**运行示例**：
+```
+请输入学生人数: 5
+第1个学生成绩: 85
+第2个学生成绩: 92
+第3个学生成绩: 78
+第4个学生成绩: 88
+第5个学生成绩: 95
+平均分: 87.6
+```
+
+### 5.8 二维动态数组
+
+**分配和释放方法**：
+
+```cpp
+#include <iostream>
+using namespace std;
+
+int main() {
+    int m, n;
+    cout << "请输入矩阵行数和列数: ";
+    cin >> m >> n;
+
+    // 第一步：分配指向每一行的指针数组
+    double** matrix = new double*[m];
+
+    // 第二步：为每一行分配列
+    for (int i = 0; i < m; i++) {
+        matrix[i] = new double[n];
+    }
+
+    // 使用矩阵
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j 
