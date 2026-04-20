@@ -8,8 +8,16 @@
 
 1. [数据结构概述](#1-数据结构概述)
 2. [线性表](#2-线性表)
-3. [查找算法](#3-查找算法)
-4. [排序算法](#4-排序算法)
+3. [单链表](#3-单链表)
+   - [3.1 链表 vs 顺序表](#31-链表-vs-顺序表)
+   - [3.2 单链表结点结构](#32-单链表结点结构)
+   - [3.3 单链表基本操作](#33-单链表基本操作)
+   - [3.4 带表头的单链表](#34-带表头的单链表)
+   - [3.5 链表的生成算法](#35-链表的生成算法)
+   - [3.6 单链表模板类](#36-单链表模板类)
+   - [3.7 综合应用示例](#37-综合应用示例)
+4. [查找算法](#4-查找算法)
+5. [排序算法](#5-排序算法)
    - [4.1 什么是排序？](#41-什么是排序)
    - [4.2 插入排序](#42-插入排序)
    - [4.3 冒泡排序](#43-冒泡排序)
@@ -454,6 +462,709 @@ int main() {
 ```
 
 ---
+
+## 3. 单链表
+
+### 3.1 链表 vs 顺序表
+
+**为什么需要链表？**
+
+想象一下，在顺序表中间插入一个元素：
+
+```
+顺序表插入前: [ A | B | C | D | E ]
+                 ↑ 插入X
+
+顺序表插入后: [ A | B | X | C | D | E ]
+              需要移动C、D、E三个元素！
+```
+
+**链表的优势**：插入/删除只需要修改几个指针，不需要移动元素。
+
+```
+链表插入前:  A → B → C → D → E
+                 ↑ 插入X
+
+链表插入后:  A → B → X → C → D → E
+              只需要改两个指针！
+```
+
+**顺序表 vs 链表对比**：
+
+| 特性 | 顺序表 | 链表 |
+|------|--------|------|
+| 存储方式 | 连续内存 | 分散内存+指针连接 |
+| 访问速度 | O(1) 随机访问 | O(n) 顺序访问 |
+| 插入删除 | O(n) 需移动元素 | O(1) 只改指针 |
+| 内存利用 | 固定大小 | 按需分配 |
+| 内存布局 | 紧密排列 | 可能碎片化 |
+
+**通俗理解**：
+- 顺序表就像电影院的固定座位，买票后位置就定了，插入要"挪人"
+- 链表就像游乐场的排队手环，随时可以插入到任意位置
+
+### 3.2 单链表结点结构
+
+**单链表的组成**：每个元素占用一个**结点（Node）**，结点包含：
+- **数据域**：存放数据元素
+- **指针域**：存放指向下一个结点的指针
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 定义数据类型
+typedef int Datatype;
+
+// 定义链表结点结构
+struct Node {
+    Datatype info;    // 数据域：存放数据
+    Node *link;       // 指针域：指向下一个结点
+};
+```
+
+**单链表示意图**：
+
+```
+head
+  ↓
+┌────┬───┐    ┌────┬───┐    ┌────┬───┐         ┌────┬────┐
+│info0│ ──┼──► │info1│ ──┼──► │info2│ ──┼──► ... ──► │infoN│ NULL│
+└────┴───┘    └────┴───┘    └────┴───┘         └────┴────┘
+   数据域      指针域        数据域
+   (首结点)                   (尾结点)
+```
+
+**⚠️ 重要概念**：
+- `head` 是表头指针，存放首结点的地址
+- `head` 丢失则链表无法访问，会造成内存泄漏！
+- 尾结点的 `link` 必须为 `NULL`（表示链表结束）
+
+### 3.3 单链表基本操作
+
+#### 3.3.1 插入操作
+
+**三种插入情况**：
+
+**Case a) 插在链首**：
+```cpp
+// 在链表头部插入新结点
+newnode->link = head;  // 新结点指向原来的首结点
+head = newnode;        // head指向新结点
+```
+
+```
+插入前: head → [A] → [B] → [C] → NULL
+插入X:        newnode → X
+
+插入后: head → [X] → [A] → [B] → [C] → NULL
+```
+
+**Case b) 插在中间**：
+```cpp
+// 在p结点后插入新结点
+newnode->link = p->link;  // 新结点指向p的后继
+p->link = newnode;         // p指向新结点
+```
+
+```
+插入前: ... → [P] → [Q] → [R] → ...
+                 ↑
+               插入X
+
+插入后: ... → [P] → [X] → [Q] → [R] → ...
+```
+
+**Case c) 插在队尾**：
+```cpp
+// 在链表尾部插入新结点
+newnode->link = p->link;  // 新结点指向NULL
+p->link = newnode;        // 尾结点指向新结点
+```
+
+```
+插入前: ... → [P] → NULL
+插入X:              newnode → X
+
+插入后: ... → [P] → [X] → NULL
+```
+
+**⚠️ 注意事项**：
+- 链表操作**顺序非常重要**！
+- 必须先处理新结点的指针，再修改原链表
+- 顺序搞反会导致链表断开
+
+#### 3.3.2 一般插入算法
+
+```cpp
+// 将数据x插入到单链表p结点之后
+void Insert(Node *p, Datatype x) {
+    Node *newnode = new Node;      // 创建新结点
+    newnode->info = x;              // 存入数据
+    newnode->link = p->link;        // 新结点指向p的后继
+    p->link = newnode;              // p指向新结点
+}
+```
+
+#### 3.3.3 遍历链表
+
+```cpp
+// 打印链表中的所有数据
+void PrintList(Node *head) {
+    Node *p = head->link;  // 从首结点开始（跳过表头）
+    
+    while (p != NULL) {
+        cout << p->info << '\t';
+        p = p->link;  // 移动到下一个结点
+    }
+    cout << endl;
+}
+```
+
+**遍历过程图解**：
+```
+p = head->link (指向首结点)
+     ↓
+┌────┐     ┌────┐     ┌────┐
+│ A  │ ──► │ B  │ ──► │ C  │ ──► NULL
+└────┘     └────┘     └────┘
+  p↑       打印A后p移动到这里
+```
+
+#### 3.3.4 查找操作
+
+```cpp
+// 在链表中查找数据为x的结点，返回结点地址
+Node* Find(Node *head, Datatype x) {
+    Node *p = head->link;  // 从首结点开始
+    
+    while (p != NULL && p->info != x) {
+        p = p->link;  // 移动到下一个结点
+    }
+    
+    return p;  // 找到返回地址，未找到返回NULL
+}
+```
+
+#### 3.3.5 删除操作
+
+```cpp
+// 删除p结点后面的一个结点
+void Delete(Node *p) {
+    Node *q;  // q指向要删除的结点
+    
+    q = p->link;  // q指向p后面的结点
+    
+    if (q != NULL) {  // 如果q存在
+        p->link = q->link;  // p指向q的后继（跳过q）
+        delete q;            // 释放q的内存
+    }
+}
+```
+
+**删除操作图解**：
+```
+删除前: ... → [P] → [Q] → [R] → ...
+删除Q:       q指向这里
+
+删除后: ... → [P] → [R] → ...
+```
+
+### 3.4 带表头的单链表
+
+**为什么需要表头结点？**
+
+- 统一操作：链首、链中、链尾的操作方式一致
+- 方便处理：不用单独处理空链表或链首的特殊情况
+
+**带表头的单链表结构**：
+
+```
+head
+  ↓
+┌────┬───┐    ┌────┬───┐    ┌────┬───┐         ┌────┬────┐
+│ 空  │ ──┼──► │info0│ ──┼──► │info1│ ──┼──► ... ──► │infoN│ NULL│
+└────┴───┘    └────┴───┘    └────┴───┘         └────┴────┘
+  表头结点      首结点        尾结点
+```
+
+**带表头的空链表**：
+```
+head
+  ↓
+┌────┬────┐
+│ 空  │NULL│
+└────┴────┘
+```
+
+**带表头的插入**：
+```cpp
+// 在表头结点后插入（相当于插在链首）
+newnode->link = head->link;  // 新结点指向原首结点
+head->link = newnode;         // 表头指向新结点
+```
+
+### 3.5 链表的生成算法
+
+#### 3.5.1 向后生成法
+
+**思想**：新结点添加到链表尾部
+
+```cpp
+// 向后生成链表：输入数据，创建链表
+Node* CreateDown() {
+    Datatype data;
+    Node *head, *tail, *p;
+    
+    // 1. 建立头结点
+    head = new Node;
+    head->link = NULL;  // 空链表
+    tail = head;        // tail指向头结点（也是尾结点）
+    
+    // 2. 输入数据，创建新结点，添加到尾部
+    while (cin >> data) {  // 输入EOF结束
+        p = new Node;      // 创建新结点
+        p->info = data;    // 存入数据
+        p->link = tail->link;  // 新结点指向NULL
+        tail->link = p;        // 尾结点指向新结点
+        tail = p;               // tail移动到新结点
+    }
+    
+    return head;
+}
+```
+
+**向后生成法图解**：
+```
+初始:  head → NULL
+       tail
+       
+输入A: head → [A] → NULL
+              tail
+
+输入B: head → [A] → [B] → NULL
+                     tail
+
+输入C: head → [A] → [B] → [C] → NULL
+                            tail
+```
+
+**特点**：
+- 数据顺序与输入顺序相同
+- 适合顺序存储的场景
+
+#### 3.5.2 向前生成法
+
+**思想**：新结点添加到链表头部
+
+```cpp
+// 向前生成链表：输入数据，创建链表
+Node* CreateUp() {
+    Datatype data;
+    Node *head, *p;
+    
+    // 1. 建立头结点
+    head = new Node;
+    head->link = NULL;  // 空链表
+    
+    // 2. 输入数据，创建新结点，添加到头部
+    while (cin >> data) {
+        p = new Node;           // 创建新结点
+        p->info = data;         // 存入数据
+        p->link = head->link;  // 新结点指向原首结点
+        head->link = p;         // 头结点指向新结点
+    }
+    
+    return head;
+}
+```
+
+**向前生成法图解**：
+```
+初始:  head → NULL
+
+输入A: head → [A] → NULL
+
+输入B: head → [B] → [A] → NULL
+
+输入C: head → [C] → [B] → [A] → NULL
+```
+
+**特点**：
+- 数据顺序与输入顺序相反
+- 适合逆序存储的场景
+
+### 3.6 单链表模板类
+
+为了通用性，使用模板实现单链表类：
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 前向声明
+template<typename T>
+class List;
+
+// ==================== 结点类模板 ====================
+template<typename T>
+class Node {
+private:
+    T info;              // 数据域
+    Node<T> *link;       // 指针域
+    
+public:
+    Node();                      // 构造函数（生成头结点）
+    Node(const T &data);        // 构造函数（生成数据结点）
+    void InsertAfter(Node<T>* p);  // 在当前结点后插入
+    Node<T>* RemoveAfter();       // 删除当前结点的后继
+    friend class List<T>;         // List是友元类
+};
+
+// 构造函数：生成头结点
+template<typename T>
+Node<T>::Node() {
+    link = NULL;  // 杜绝野指针！
+}
+
+// 构造函数：生成数据结点
+template<typename T>
+Node<T>::Node(const T &data) {
+    info = data;
+    link = NULL;
+}
+
+// 在当前结点后插入p
+template<typename T>
+void Node<T>::InsertAfter(Node<T>* p) {
+    p->link = link;  // p指向当前结点的后继
+    link = p;        // 当前结点指向p
+}
+
+// 删除当前结点的后继结点，返回被删结点
+template<typename T>
+Node<T>* Node<T>::RemoveAfter() {
+    Node<T> *tempP = link;  // 暂存后继结点
+    
+    if (link == NULL) {
+        tempP = NULL;
+    } else {
+        link = tempP->link;  // 跳过tempP
+    }
+    
+    return tempP;
+}
+```
+
+**链表类模板**：
+
+```cpp
+// ==================== 链表类模板 ====================
+template<typename T>
+class List {
+private:
+    Node<T> *head;  // 头指针
+    Node<T> *tail;  // 尾指针
+    
+public:
+    List();                 // 构造函数：生成头结点(空链表)
+    ~List();                // 析构函数
+    void MakeEmpty();       // 清空链表，只余表头结点
+    Node<T>* Find(const T &data) const;  // 搜索结点，返回地址
+    int Length() const;     // 计算单链表长度
+    void PrintList() const;  // 打印链表的数据域
+    void InsertFront(Node<T>* p);   // 向前生成链表
+    void InsertRear(Node<T>* p);    // 向后生成链表
+    void InsertOrder(Node<T>* p);   // 按升序生成链表
+    Node<T>* CreatNode(const T &data);  // 创建结点(孤立结点)
+    Node<T>* DeleteNode(Node<T>* p);     // 删除指定结点
+};
+
+// 构造函数
+template<typename T>
+List<T>::List() {
+    head = tail = new Node<T>();  // 创建头结点
+}
+
+// 析构函数
+template<typename T>
+List<T>::~List() {
+    MakeEmpty();      // 删除所有数据结点
+    delete head;      // 删除头结点
+}
+
+// 清空链表
+template<typename T>
+void List<T>::MakeEmpty() {
+    Node<T> *tempP;
+    
+    while (head->link != NULL) {
+        tempP = head->link;
+        head->link = tempP->link;  // 跳过tempP
+        delete tempP;              // 释放
+    }
+    
+    tail = head;  // tail回到头结点
+}
+
+// 搜索结点
+template<typename T>
+Node<T>* List<T>::Find(const T &data) const {
+    Node<T> *tempP = head->link;  // 从首结点开始
+    
+    while (tempP != NULL && tempP->info != data) {
+        tempP = tempP->link;
+    }
+    
+    return tempP;  // 找到返回地址，未找到返回NULL
+}
+
+// 计算长度
+template<typename T>
+int List<T>::Length() const {
+    int count = 0;
+    Node<T> *tempP = head->link;
+    
+    while (tempP != NULL) {
+        tempP = tempP->link;
+        count++;
+    }
+    
+    return count;
+}
+
+// 打印链表
+template<typename T>
+void List<T>::PrintList() const {
+    Node<T> *tempP = head->link;
+    
+    while (tempP != NULL) {
+        cout << tempP->info << "\t";
+        tempP = tempP->link;
+    }
+    cout << endl;
+}
+
+// 向前生成链表（头插法）
+template<typename T>
+void List<T>::InsertFront(Node<T> *p) {
+    p->link = head->link;  // 新结点指向原首结点
+    head->link = p;        // 头结点指向新结点
+    
+    if (tail == head) {    // 如果是空链表
+        tail = p;          // tail指向第一个数据结点
+    }
+}
+
+// 向后生成链表（尾插法）
+template<typename T>
+void List<T>::InsertRear(Node<T> *p) {
+    p->link = tail->link;  // 新结点指向NULL
+    tail->link = p;        // 尾结点指向新结点
+    tail = p;              // tail移动到新结点
+}
+
+// 按升序生成链表
+template<typename T>
+void List<T>::InsertOrder(Node<T> *p) {
+    Node<T> *tempP = head->link;
+    Node<T> *tempQ = head;
+    
+    // 查找正确的插入位置
+    while (tempP != NULL) {
+        if (p->info < tempP->info) {
+            break;  // 找到插入位置
+        }
+        tempQ = tempP;
+        tempP = tempP->link;
+    }
+    
+    tempQ->InsertAfter(p);  // 在tempQ后插入p
+    
+    if (tail == tempQ) {     // 如果插入到尾结点之后
+        tail = tempQ->link;
+    }
+}
+
+// 创建孤立结点
+template<typename T>
+Node<T>* List<T>::CreatNode(const T &data) {
+    Node<T> *tempP = new Node<T>(data);
+    return tempP;
+}
+
+// 删除指定结点
+template<typename T>
+Node<T>* List<T>::DeleteNode(Node<T> *p) {
+    Node<T> *tempP = head;
+    
+    // 查找p的前驱
+    while (tempP->link != NULL && tempP->link != p) {
+        tempP = tempP->link;
+    }
+    
+    if (tempP->link == tail) {  // 如果删除尾结点
+        tail = tempP;
+    }
+    
+    return tempP->RemoveAfter();  // 删除并返回p
+}
+```
+
+### 3.7 综合应用示例
+
+```cpp
+#include "singlelinklist.h"
+#include <cstdlib>
+#include <ctime>
+
+int main() {
+    Node<int>* P1, *P2;
+    List<int> list1, list2;
+    int *a, i, j, N;
+    
+    // 1. 输入链表结点个数
+    cout << "请输入链表结点个数: ";
+    cin >> N;
+    
+    // 2. 随机产生N个不同的整数
+    a = new int[N];
+    srand(0);
+    
+    for (i = 0; i < N; i++) {
+        a[i] = rand() % 100 + 1;  // 1~100的随机数
+        
+        // 确保不重复
+        for (j = 0; j < i; j++) {
+            if (a[i] == a[j]) {
+                i--;  // 重新生成
+                break;
+            }
+        }
+    }
+    
+    // 3. 生成两个链表
+    for (i = 0; i < N; i++) {
+        P1 = list1.CreatNode(a[i]);
+        list1.InsertFront(P1);  // 向前生成list1
+        
+        P1 = list2.CreatNode(a[i]);
+        list2.InsertRear(P1);   // 向后生成list2
+    }
+    
+    // 4. 输出链表
+    cout << "list1 (向前生成): ";
+    list1.PrintList();
+    cout << "list1长度: " << list1.Length() << endl;
+    
+    cout << "list2 (向后生成): ";
+    list2.PrintList();
+    cout << "list2长度: " << list2.Length() << endl;
+    
+    // 5. 查找并删除
+    cout << "请输入一个要求删除的整数: ";
+    cin >> j;
+    
+    P1 = list1.Find(j);
+    if (P1 != NULL) {
+        list1.DeleteNode(P1);
+        cout << "删除后的list1: ";
+        list1.PrintList();
+        cout << "list1长度: " << list1.Length() << endl;
+    } else {
+        cout << "list1中未找到" << j << endl;
+    }
+    
+    P2 = list2.Find(j);
+    if (P2 != NULL) {
+        list2.DeleteNode(P2);
+        delete P2;  // 释放被删除结点的空间
+        cout << "删除后的list2: ";
+        list2.PrintList();
+        cout << "list2长度: " << list2.Length() << endl;
+    } else {
+        cout << "list2中未找到" << j << endl;
+    }
+    
+    // 6. 将删除的结点插入list2尾部
+    cout << "将list1中删除的结点插入list2尾部: " << endl;
+    list2.InsertRear(P1);
+    list2.PrintList();
+    
+    // 7. 按升序生成链表
+    list1.MakeEmpty();  // 清空list1
+    for (i = 0; i < 15; i++) {
+        P1 = list1.CreatNode(a[i]);
+        list1.InsertOrder(P1);  // 升序插入
+    }
+    cout << "list1按升序排列: ";
+    list1.PrintList();
+    
+    delete[] a;
+    return 0;
+}
+```
+
+**运行结果示例**：
+```
+请输入链表结点个数: 5
+请输入一个要求删除的整数: 30
+list1 (向前生成): 87    45    30    92    18    
+list1长度: 5
+list2 (向后生成): 18    92    30    45    87    
+list2长度: 5
+删除后的list1: 87    45    92    18    
+list1长度: 4
+删除后的list2: 18    92    45    87    
+list2长度: 4
+将list1中删除的结点插入list2尾部: 
+18    92    45    87    30    
+list1按升序排列: 18    30    45    87    92    
+```
+
+### 3.8 ⚠️ 链表使用注意事项
+
+1. **不要忘记初始化指针**
+   ```cpp
+   Node() { link = NULL; }  // 杜绝野指针！
+   ```
+
+2. **插入顺序很重要**
+   ```cpp
+   // ✅ 正确顺序
+   newnode->link = p->link;
+   p->link = newnode;
+   
+   // ❌ 错误顺序（会导致链表断开）
+   p->link = newnode;
+   newnode->link = p->link;
+   ```
+
+3. **删除后要释放内存**
+   ```cpp
+   Node *temp = p->link;
+   p->link = temp->link;
+   delete temp;  // 释放内存
+   ```
+
+4. **链表为空时的处理**
+   ```cpp
+   if (head->link == NULL) {
+       cout << "链表为空" << endl;
+   }
+   ```
+
+5. **使用智能指针更安全**（C++11+）
+   ```cpp
+   struct Node {
+       int info;
+       std::unique_ptr<Node> link;
+   };
+   // 自动管理内存，避免内存泄漏
+   ```
+
+---
+
 
 ## 4. 排序算法
 

@@ -16,6 +16,8 @@
 8. [静态成员](#8-静态成员)
 9. [友元](#9-友元)
 10. [运算符重载](#10-运算符重载)
+11. [自由存储区对象的构造与析构](#11-自由存储区对象的构造与析构)
+12. [浅复制与深复制](#12-浅复制与深复制)
 
 ---
 
@@ -1745,6 +1747,491 @@ A: 会，所以建议尽量少用友元，优先使用公有成员函数。
 2. 定义一个复数类，实现加减乘除运算。
 3. 设计一个字符串类，包含构造函数、析构函数、复制构造函数、重载+运算符。
 4. 用静态成员实现一个计数器，统计创建了多少个对象。
+
+---
+
+*返回 [主目录](../README.md)*
+
+---
+
+## 11. 自由存储区对象的构造与析构
+
+### 11.1 什么是自由存储区？
+
+**自由存储区（Free Store）**：程序运行时动态分配的内存区域，与栈（Stack）相对应。
+
+```
+内存布局：
+┌─────────────────┐ 高地址
+│      代码区      │  存放程序代码
+├─────────────────┤
+│      静态区      │  全局变量、静态变量
+├─────────────────┤
+│      栈区        │  函数参数、局部变量（自动管理）
+├─────────────────┤
+│    自由存储区     │  new/delete 动态分配（手动管理）
+│   (Heap堆区)     │
+└─────────────────┘ 低地址
+```
+
+**为什么需要动态内存分配？**
+- 需要的内存大小在编译时无法确定
+- 需要在多个函数间共享数据
+- 程序运行期间数据量变化较大
+
+### 11.2 new 和 delete 操作符
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 基本数据类型
+int *p1 = new int;        // 分配一个int空间
+int *p2 = new int(100);   // 分配并初始化
+int *p3 = new int[10];    // 分配数组
+
+delete p1;    // 释放单个对象
+delete p2;   // 释放单个对象
+delete[] p3; // 释放数组（注意[]）
+
+// C++11 nullptr
+int *p4 = nullptr;  // 避免野指针
+```
+
+### 11.3 类对象的动态分配
+
+```cpp
+#include <iostream>
+#include <string>
+using namespace std;
+
+class CGoods {
+private:
+    string Name;
+    int Amount;
+    float Price;
+    float TotalValue;
+    
+public:
+    // 无参构造函数
+    CGoods() {
+        cout << "调用默认构造函数" << endl;
+        Name = "";
+        Amount = 0;
+        Price = 0;
+        TotalValue = 0;
+    }
+    
+    // 有参构造函数
+    CGoods(string name, int amount, float price) {
+        cout << "调用三参数构造函数" << endl;
+        Name = name;
+        Amount = amount;
+        Price = price;
+        TotalValue = price * amount;
+    }
+    
+    // 析构函数
+    ~CGoods() {
+        cout << "调用析构函数: " << Name << endl;
+    }
+    
+    void Show() {
+        cout << Name << " - 数量:" << Amount 
+             << " 单价:" << Price << endl;
+    }
+};
+```
+
+### 11.4 动态创建对象
+
+```cpp
+int main() {
+    CGoods *pc1, *pc2, *pc3;
+    
+    // 1. 调用有参构造函数
+    pc1 = new CGoods("夏利2000", 10, 118000);
+    pc1->Show();
+    
+    // 2. 调用默认构造函数
+    pc2 = new CGoods;
+    pc2->Show();
+    
+    // 3. 动态创建对象数组
+    // ⚠️ 注意：创建对象数组时，只能调用默认构造函数！
+    int n;
+    cout << "输入商品类数组元素数: ";
+    cin >> n;
+    pc3 = new CGoods[n];  // 调用n次默认构造函数
+    
+    // 释放内存
+    delete pc1;       // 释放单个对象，调用析构函数
+    delete pc2;       // 释放单个对象，调用析构函数
+    delete[] pc3;     // 释放数组，调用n次析构函数
+    
+    return 0;
+}
+```
+
+**运行结果示例**：
+```
+调用三参数构造函数
+夏利2000 - 数量:10 单价:118000
+调用默认构造函数
+ - 数量:0 单价:0
+调用默认构造函数
+调用默认构造函数
+调用默认构造函数
+输入商品类数组元素数: 3
+调用析构函数: 夏利2000
+调用析构函数: 
+调用析构函数: 
+调用析构函数: 
+调用析构函数: 
+调用析构函数: 
+```
+
+### 11.5 ⚠️ 注意事项
+
+1. **不要忘记 delete！**
+   - `new` 分配的内存不会自动释放
+   - 忘记 `delete` 会导致内存泄漏
+
+2. **delete[] vs delete**
+   - `new[]` 必须用 `delete[]` 释放
+   - `new` 必须用 `delete` 释放
+   - 混用会导致未定义行为
+
+3. **避免野指针**
+   ```cpp
+   int *p = new int(10);
+   delete p;
+   p = nullptr;  // 释放后置空，避免野指针
+   ```
+
+4. **对象数组只能用默认构造函数**
+   ```cpp
+   class Test {
+   public:
+       Test() {}           // 必须有这个！
+       Test(int x) {}
+   };
+   
+   Test *p = new Test[10];  // OK，调用默认构造
+   ```
+
+### 11.6 new 失败的处理
+
+```cpp
+#include <new>  // 包含 std::nothrow
+
+// 方式1：检查返回值
+int *p = new (std::nothrow) int[100000000];
+if (p == nullptr) {
+    cout << "内存分配失败" << endl;
+}
+
+// 方式2：使用 try-catch
+try {
+    int *p = new int[100000000];
+} catch (bad_alloc) {
+    cout << "内存分配失败" << endl;
+}
+```
+
+---
+
+## 12. 浅复制与深复制
+
+### 12.1 什么是浅复制？
+
+**浅复制（Shallow Copy）**：默认的复制构造函数采用按成员复制的方式，只是简单地复制指针的值，不复制指针指向的内容。
+
+```cpp
+class Student {
+public:
+    char *pName;  // 指向动态内存的指针
+    
+    Student() {
+        pName = nullptr;
+    }
+    
+    Student(char *name) {
+        if (pName = new char[strlen(name) + 1])
+            strcpy(pName, name);
+    }
+    
+    // ⚠️ 默认的复制构造函数（浅复制）
+    Student(Student &s) {
+        pName = s.pName;  // 只是复制了指针值！
+    }
+};
+```
+
+### 12.2 浅复制的问题
+
+```
+复制前：
+┌─────────┐     ┌──────────────┐
+│  obj1   │     │ "范英明"     │
+│ pName ──┼────►│ (自由存储区)  │
+└─────────┘     └──────────────┘
+
+复制后（浅复制）：
+┌─────────┐     ┌──────────────┐     ┌─────────┐
+│  obj1   │     │ "范英明"     │     │  obj2   │
+│ pName ──┼────►│ (自由存储区)  │◄────┼─ pName  │
+└─────────┘     └──────────────┘     └─────────┘
+                两个指针指向同一块内存！
+                
+问题1: obj1和obj2的数据会互相影响
+问题2: delete时会导致双重释放！
+```
+
+### 12.3 深复制详解
+
+**深复制（Deep Copy）**：在复制构造函数中，为新对象重新分配内存，并复制指针指向的内容。
+
+```cpp
+class Student {
+public:
+    char *pName;  // 指向动态内存的指针
+    
+    Student() {
+        cout << "Constructor1（默认）" << endl;
+        pName = nullptr;
+    }
+    
+    Student(char *name) {
+        cout << "Constructor2（有参）" << endl;
+        if (pName = new char[strlen(name) + 1])
+            strcpy(pName, name);
+        cout << pName << endl;
+    }
+    
+    // 析构函数
+    ~Student() {
+        cout << "Destructor（析构）" << endl;
+        if (pName) {
+            cout << "释放: " << pName << endl;
+            delete[] pName;  // 释放字符串内存
+        }
+    }
+    
+    // ⭐ 深复制构造函数
+    Student(Student &s) {
+        cout << "Copy Constructor（复制构造）" << endl;
+        if (s.pName) {
+            // 为新对象分配独立的内存空间
+            pName = new char[strlen(s.pName) + 1];
+            // 复制字符串内容
+            strcpy(pName, s.pName);
+            cout << pName << endl;
+        } else {
+            pName = nullptr;
+        }
+    }
+    
+    // ⭐ 赋值运算符重载
+    Student& operator=(Student &s) {
+        cout << "Copy Assign Operator（赋值运算符）" << endl;
+        
+        // 防止自赋值
+        if (this != &s) {
+            // 释放原有内存（如果已分配）
+            if (pName) {
+                delete[] pName;
+            }
+            
+            // 重新分配并复制
+            if (s.pName) {
+                pName = new char[strlen(s.pName) + 1];
+                strcpy(pName, s.pName);
+                cout << pName << endl;
+            } else {
+                pName = nullptr;
+            }
+        }
+        return *this;
+    }
+};
+```
+
+### 12.4 深复制 vs 浅复制图解
+
+```
+深复制后：
+┌─────────┐     ┌──────────────┐     ┌─────────┐     ┌──────────────┐
+│  obj1   │     │ "范英明"     │     │  obj2   │     │ "范英明"     │
+│ pName ──┼────►│ (自由存储区1) │     │ pName ──┼────►│ (自由存储区2) │
+└─────────┘     └──────────────┘     └─────────┘     └──────────────┘
+                独立的两块内存！
+```
+
+### 12.5 完整示例
+
+```cpp
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+class Student {
+public:
+    char *pName;
+    
+    Student() {
+        cout << "Constructor1（默认）" << endl;
+        pName = nullptr;
+    }
+    
+    Student(char *name) {
+        cout << "Constructor2（有参）" << endl;
+        if (pName = new char[strlen(name) + 1])
+            strcpy(pName, name);
+    }
+    
+    ~Student() {
+        cout << "Destructor（析构）" << endl;
+        if (pName) {
+            cout << "释放: " << pName << endl;
+            delete[] pName;
+        }
+    }
+    
+    // 深复制构造函数
+    Student(Student &s) {
+        cout << "Copy Constructor（复制构造）" << endl;
+        if (s.pName) {
+            pName = new char[strlen(s.pName) + 1];
+            strcpy(pName, s.pName);
+        } else {
+            pName = nullptr;
+        }
+    }
+    
+    // 赋值运算符重载
+    Student& operator=(Student &s) {
+        cout << "Copy Assign Operator（赋值运算符）" << endl;
+        if (this != &s) {
+            if (pName) delete[] pName;
+            if (s.pName) {
+                pName = new char[strlen(s.pName) + 1];
+                strcpy(pName, s.pName);
+            } else {
+                pName = nullptr;
+            }
+        }
+        return *this;
+    }
+    
+    void Show() {
+        if (pName)
+            cout << "学生: " << pName << endl;
+    }
+};
+
+int main() {
+    cout << "=== 创建对象 ===" << endl;
+    Student s1("范英明");
+    Student s2("沈俊");
+    Student s3;  // 默认构造
+    
+    cout << "\n=== 用已有对象初始化新对象（调用复制构造）===" << endl;
+    Student s4 = s1;  // Student s4(s1);  调用复制构造函数
+    
+    cout << "\n=== 赋值操作（调用赋值运算符）===" << endl;
+    s3 = s2;  // s3已经存在，用s2赋值给它
+    
+    cout << "\n=== 修改s4 ===" << endl;
+    s4.Show();
+    
+    cout << "\n=== 函数结束，析构 ===" << endl;
+    return 0;
+}
+```
+
+**运行结果**：
+```
+=== 创建对象 ===
+Constructor2（有参）
+范英明
+Constructor2（有参）
+沈俊
+Constructor1（默认）
+
+=== 用已有对象初始化新对象（调用复制构造）===
+Copy Constructor（复制构造）
+范英明
+
+=== 赋值操作（调用赋值运算符）===
+Copy Assign Operator（赋值运算符）
+沈俊
+
+=== 修改s4 ===
+学生: 范英明
+
+=== 函数结束，析构 ===
+Destructor（析构）
+释放: 范英明
+Destructor（析构）
+释放: 沈俊
+Destructor（析构）
+释放: 沈俊
+Destructor（析构）
+释放: 范英明
+```
+
+### 12.6 何时需要深复制？
+
+**需要深复制的情况**：
+- 类中有指针成员
+- 指针指向动态分配的内存
+- 需要独立的数据副本
+
+**不需要深复制的情况**：
+- 只有基本类型成员（int, float, char等）
+- 指针指向静态数据
+- 共享数据是设计意图（如引用计数）
+
+### 12.7 ⚠️ 注意事项
+
+1. **赋值运算符重载要检查自赋值**
+   ```cpp
+   Student& operator=(Student &s) {
+       if (this != &s) {  // 必须！
+           // ...
+       }
+       return *this;
+   }
+   ```
+
+2. **释放原有内存**
+   ```cpp
+   if (pName) delete[] pName;  // 先释放
+   pName = new char[...];     // 再分配
+   ```
+
+3. **复制构造 vs 赋值运算符**
+   ```cpp
+   Student s2 = s1;  // 调用复制构造函数（创建新对象）
+   s3 = s1;          // 调用赋值运算符（s3已存在）
+   ```
+
+4. **使用智能指针更安全**
+   ```cpp
+   #include <memory>
+   
+   class Student {
+   public:
+       std::unique_ptr<char[]> pName;  // 自动管理内存
+       
+       Student(const char *name) {
+           pName = std::make_unique<char[]>(strlen(name) + 1);
+           strcpy(pName.get(), name);
+       }
+       // 不需要手动析构、复制构造、赋值运算符！
+   };
+   ```
 
 ---
 
