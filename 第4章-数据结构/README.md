@@ -16,20 +16,26 @@
    - [3.5 链表的生成算法](#35-链表的生成算法)
    - [3.6 单链表模板类](#36-单链表模板类)
    - [3.7 综合应用示例](#37-综合应用示例)
+   - [3.8 双向循环链表](#38-双向循环链表)
 4. [查找算法](#4-查找算法)
 5. [排序算法](#5-排序算法)
-   - [4.1 什么是排序？](#41-什么是排序)
-   - [4.2 插入排序](#42-插入排序)
-   - [4.3 冒泡排序](#43-冒泡排序)
-   - [4.4 选择排序](#44-选择排序)
-   - [4.5 对半插入排序](#45-对半插入排序二分插入排序)
-   - [4.6 希尔排序](#46-希尔排序缩小增量排序)
-   - [4.7 快速排序](#47-快速排序)
-   - [4.8 归并排序](#48-归并排序分而治之)
-   - [4.9 排序算法对比](#49-排序算法对比)
-5. [动态内存分配](#5-动态内存分配)
-6. [综合应用示例](#6-综合应用示例)
-7. [常见问题与优化](#7-常见问题与优化)
+   - [5.1 什么是排序？](#51-什么是排序)
+   - [5.2 插入排序](#52-插入排序)
+   - [5.3 冒泡排序](#53-冒泡排序)
+   - [5.4 选择排序](#54-选择排序)
+   - [5.5 对半插入排序](#55-对半插入排序二分插入排序)
+   - [5.6 希尔排序](#56-希尔排序缩小增量排序)
+   - [5.7 快速排序](#57-快速排序)
+   - [5.8 归并排序](#58-归并排序分而治之)
+   - [5.9 排序算法对比](#59-排序算法对比)
+6. [动态内存分配](#6-动态内存分配)
+7. [栈与队列](#7-栈与队列)
+   - [7.1 什么是栈和队列？](#71-什么是栈和队列)
+   - [7.2 栈](#72-栈)
+   - [7.3 队列](#73-队列)
+   - [7.4 栈与队列总结](#74-栈与队列总结)
+8. [综合应用示例](#8-综合应用示例)
+9. [常见问题与优化](#9-常见问题与优化)
 
 ---
 
@@ -1163,8 +1169,1540 @@ list1按升序排列: 18    30    45    87    92
    // 自动管理内存，避免内存泄漏
    ```
 
+
 ---
 
+### 3.8 双向循环链表
+
+#### 3.8.1 双向链表的基本概念
+
+**双向链表（Doubly Linked List）**：每个结点包含两个指针域——一个指向后继结点，一个指向前驱结点。
+
+**双向循环链表**：在双向链表的基础上，让头结点的前驱指向尾结点，尾结点的后继指向头结点，形成一个环。
+
+```
+双向循环链表结构示意图：
+
+        ┌─────────────────────────────────────┐
+        ↓                                     │
+    ┌─────────┐    ┌─────────┐    ┌─────────┐ │    ┌─────────┐
+    │  head   │←───│ node 1  │←───│ node 2  │←───...←───│ node n │
+    │ (表头)  │───→│ llink=  │───→│ llink=  │───→      │ llink= │
+    │         │    │ rlink=  │    │ rlink=  │          │ rlink= │
+    └────↑────┘    └─────────┘    └─────────┘          └─────────┘
+         │                                                     │
+         └───────────────── rlink ─────────────────────────────┘
+```
+
+**与单链表的区别**：
+- 单链表：只能从表头向表尾遍历
+- 双向链表：可以从表头向表尾，也可以从表尾向表头
+
+**双向链表的特点**：
+1. 可以从两个方向访问结点
+2. 插入和删除操作更灵活（但需要同时修改两个指针）
+3. 占用更多内存（每个结点多一个指针）
+
+#### 3.8.2 双向链表的结点结构
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 双向链表结点类模板
+template <typename T>
+class DblNode {
+private:
+    T info;                      // 结点数据
+    DblNode<T>* llink;           // 前驱指针
+    DblNode<T>* rlink;           // 后继指针
+
+public:
+    // 构造函数
+    DblNode(T data = 0) {
+        info = data;
+        llink = rlink = nullptr;
+    }
+    
+    // 无参构造函数
+    DblNode() {
+        info = 0;
+        llink = rlink = nullptr;
+    }
+    
+    // 获取结点数据
+    T GetInfo() {
+        return info;
+    }
+    
+    // 设置结点数据
+    void SetInfo(const T& data) {
+        info = data;
+    }
+    
+    // 友元类声明
+    friend class DblList<T>;
+};
+```
+
+**结点结构图解**：
+
+```
+┌────────────────────────────────────┐
+│           DblNode<T>              │
+├────────────┬───────────┬───────────┤
+│   llink    │    info   │   rlink   │
+│  (前驱指针) │   (数据)   │ (后继指针) │
+└────────────┴───────────┴───────────┘
+       ↑                           ↑
+    指向前驱                       指向后继
+```
+
+#### 3.8.3 双向循环链表类模板
+
+```cpp
+// 双向循环链表类模板
+template <typename T>
+class DblList {
+private:
+    DblNode<T>* head;      // 表头指针
+    DblNode<T>* current;   // 当前指针
+
+public:
+    // 构造函数：创建空表
+    DblList();
+    
+    // 析构函数：销毁链表
+    ~DblList();
+    
+    // 在表头插入新结点
+    void Insert(const T& data);
+    
+    // 删除指定结点
+    DblNode<T>* Remove(DblNode<T>* p);
+    
+    // 打印链表
+    void Print();
+    
+    // 获取链表长度
+    int Length();
+    
+    // 查找数据
+    DblNode<T>* Find(const T& data) const;
+    
+    // 清空链表
+    void MakeEmpty();
+    
+    // 判断链表是否为空
+    bool IsEmpty() const;
+};
+```
+
+#### 3.8.4 双向循环链表的基本操作
+
+**1. 空表建立（构造函数）**
+
+```cpp
+template <typename T>
+DblList<T>::DblList() {
+    // 创建表头结点
+    head = new DblNode<T>();
+    // 双向循环链表：头结点的前驱和后继都指向自己
+    head->rlink = head->llink = head;
+    current = nullptr;
+}
+```
+
+**空表建立图解**：
+
+```
+head
+  │
+  └──→ ┌─────────┐
+       │  head   │
+       │(表头)   │
+       │ llink ──┼──→ head
+       │ rlink ──┼──→ head
+       └─────────┘
+```
+
+**2. 插入结点**
+
+```cpp
+template <typename T>
+void DblList<T>::Insert(const T& data) {
+    // 创建新结点
+    current = new DblNode<T>;
+    current->info = data;  // 存入数据
+    
+    // 循环链接：新结点的前驱指向表头的前驱
+    current->llink = head->llink;
+    // 新结点的后继指向表头
+    current->rlink = head;
+    
+    // 修改原最后结点：它的后继指向新结点
+    head->llink->rlink = current;
+    // 修改表头：它的前驱指向新结点
+    head->llink = current;
+}
+```
+
+**插入操作图解**：
+
+```
+插入前：                        插入后：
+
+head                           head
+  │                               │
+  ↓                               ↓
+┌─────────┐ ←──rlink──┐    ┌─────────┐ ←──rlink──┐
+│  head   │           │    │  head   │            │
+│(表头)   │           │    │(表头)   │            │
+└─────────┼───llink──→┘    └─────────┼───llink──→┘
+  ↑                           ↑  ↑
+  │                           │  │
+  └──rlink───────────────────┘  │  │
+                               │  │
+                    ┌─────────┴──┘
+                    ↓
+              ┌─────────┐
+              │  new    │ ← current
+              │  node   │
+              └─────────┘
+```
+
+**插入步骤详解**：
+1. 创建新结点 `current`
+2. `current->llink = head->llink` - 新结点的前驱指向原最后一个结点
+3. `current->rlink = head` - 新结点的后继指向表头
+4. `head->llink->rlink = current` - 原最后一个结点的后继指向新结点
+5. `head->llink = current` - 表头的前驱指向新结点
+
+**3. 删除结点**
+
+```cpp
+template <typename T>
+DblNode<T>* DblList<T>::Remove(DblNode<T>* p) {
+    // 从表头开始查找要删除的结点
+    current = head->rlink;
+    while (current != head && current != p) {
+        current = current->rlink;
+    }
+    
+    if (current == head) {
+        // 没找到，p不在链表中
+        current = nullptr;
+    } else {
+        // 找到了，修改前驱结点的后继指针
+        p->llink->rlink = p->rlink;
+        // 修改后继结点的前驱指针
+        p->rlink->llink = p->llink;
+        // 断开设点：清空p的指针
+        p->rlink = p->llink = nullptr;
+    }
+    return current;
+}
+```
+
+**删除操作图解**：
+
+```
+删除前：                        删除后：
+
+head                           head
+  │                               │
+  ↓                               ↓
+┌─────────┐                     ┌─────────┐
+│  head   │                     │  head   │
+│(表头)   │                     │(表头)   │
+└─────────┼──→─┐     ┌─────────┼──→─┐
+          │     │     │         │     │
+    ┌─────┘     ↓     ↓         └─────┘
+    ↓       ┌─────────┐   ┌─────────┐
+  node1     │   p     │   │ node2  │
+    │       │(待删除) │   │
+    │       └─────────┘   │
+    │                     │
+    └─────────────────────┘
+
+修改：p->llink->rlink = p->rlink  // node1的后继指向node2
+修改：p->rlink->llink = p->llink  // node2的前驱指向node1
+```
+
+#### 3.8.5 双向循环链表 vs 单链表
+
+| 特性 | 单链表 | 双向循环链表 |
+|------|--------|--------------|
+| 结点结构 | data + 1个指针 | data + 2个指针 |
+| 遍历方向 | 单向（从头到尾） | 双向（从头到尾/从尾到头） |
+| 内存占用 | 较少 | 较多（多一个指针） |
+| 插入删除 | 只需修改1个指针 | 需同时修改2个指针 |
+| 找前驱 | O(n) - 需要遍历 | O(1) - 直接通过llink |
+| 适用场景 | 只需要从头遍历 | 需要双向操作 |
+
+**选择建议**：
+- 如果只需要从头到尾遍历 → 单链表
+- 如果需要频繁找前驱或双向操作 → 双向链表
+- 如果需要快速找到头尾 → 双向循环链表
+
+#### 3.8.6 综合示例：双向循环链表的使用
+
+```cpp
+#include <iostream>
+using namespace std;
+
+// 双向链表结点类
+template <typename T>
+class DblNode {
+private:
+    T info;
+    DblNode<T>* llink;
+    DblNode<T>* rlink;
+public:
+    DblNode(T data = 0) {
+        info = data;
+        llink = rlink = nullptr;
+    }
+    T GetInfo() { return info; }
+    friend class DblList<T>;
+};
+
+// 双向循环链表类
+template <typename T>
+class DblList {
+private:
+    DblNode<T>* head;
+    DblNode<T>* current;
+public:
+    DblList() {
+        head = new DblNode<T>();
+        head->rlink = head->llink = head;
+        current = nullptr;
+    }
+    
+    ~DblList() {
+        MakeEmpty();
+        delete head;
+    }
+    
+    void Insert(const T& data) {
+        current = new DblNode<T>(data);
+        current->llink = head->llink;
+        current->rlink = head;
+        head->llink->rlink = current;
+        head->llink = current;
+    }
+    
+    void Print() {
+        current = head->rlink;
+        cout << "链表内容: ";
+        while (current != head) {
+            cout << current->GetInfo() << " ";
+            current = current->rlink;
+        }
+        cout << endl;
+    }
+    
+    int Length() {
+        int count = 0;
+        current = head->rlink;
+        while (current != head) {
+            count++;
+            current = current->rlink;
+        }
+        return count;
+    }
+    
+    void MakeEmpty() {
+        current = head->rlink;
+        while (current != head) {
+            head->rlink = current->rlink;
+            current->rlink->llink = head;
+            delete current;
+            current = head->rlink;
+        }
+    }
+    
+    bool IsEmpty() {
+        return head->rlink == head;
+    }
+};
+
+int main() {
+    DblList<int> list;
+    
+    // 插入元素
+    cout << "=== 双向循环链表操作演示 ===" << endl;
+    list.Insert(10);
+    list.Insert(20);
+    list.Insert(30);
+    list.Insert(40);
+    
+    cout << "插入4个元素后: ";
+    list.Print();
+    cout << "链表长度: " << list.Length() << endl;
+    
+    // 再次插入
+    list.Insert(25);
+    cout << "再插入25后: ";
+    list.Print();
+    
+    cout << endl << "链表是否为空: " << (list.IsEmpty() ? "是" : "否") << endl;
+    
+    return 0;
+}
+```
+
+**运行结果**：
+```
+=== 双向循环链表操作演示 ===
+插入4个元素后: 链表内容: 10 20 30 40 
+链表长度: 4
+再插入25后: 链表内容: 10 20 30 40 25 
+```
+
+---
+
+## 6. 栈与队列
+
+### 6.1 什么是栈和队列？
+
+**栈和队列**都是特殊的线性表，它们限制了数据存取的位置。
+
+```
+线性表（可自由存取）:   a0  a1  a2  a3  ...  an-1
+                        ↑
+                    可以在任意位置插入/删除
+
+栈（LIFO）:            a0  a1  a2  a3  ...  an-1
+                        ↑                        ↑
+                       bottom                  top
+                    只能在"一端"操作（栈顶）
+
+队列（FIFO）:    front → a0  a1  a2  ... an-1 ← rear
+                       ↑                      ↑
+                     出队端                  入队端
+```
+
+**实现方式**：可以用顺序表（数组）实现，也可以用链表实现。
+
+---
+
+### 6.2 栈
+
+#### 6.2.1 栈的基本概念
+
+**栈（Stack）**：只允许在表的一端（称为**栈顶**）进行插入和删除操作的线性表。
+
+**特点**：**后进先出（LIFO：Last In First Out）**
+
+```
+┌─────────────┐
+│    top      │  ← 栈顶：只能在这里操作
+│    ...      │
+│    a2       │
+│    a1       │
+│    a0       │
+├─────────────┤
+│   bottom    │  ← 栈底：固定不动
+└─────────────┘
+```
+
+**生活实例**：
+- **叠盘子**：最后放的盘子最先被拿走
+- **函数调用**：被调用的函数最后执行完，最先返回
+
+**基本操作**：
+- **压栈（Push）**：将元素放入栈顶
+- **弹出（Pop）**：将栈顶元素取出并删除
+- **取元素（GetTop）**：查看栈顶元素（不出栈）
+- **判空/判满**：检查栈状态
+
+#### 6.2.2 顺序栈的类模板
+
+```cpp
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+// 顺序栈类模板
+template<typename T>
+class Stack {
+private:
+    int top;              // 栈顶指针（数组下标）
+    T* elements;          // 动态数组存储元素
+    int maxSize;          // 栈的最大容量
+
+public:
+    // 构造函数
+    Stack(int size = 20) {
+        maxSize = size;
+        top = -1;                    // 空栈时top为-1
+        elements = new T[maxSize];
+        assert(elements != nullptr); // 确保分配成功
+    }
+    
+    // 析构函数
+    ~Stack() {
+        delete[] elements;
+    }
+    
+    // 压栈：将元素放入栈顶
+    void Push(const T& data) {
+        assert(!IsFull());           // 栈满则退出
+        elements[++top] = data;      // top先加1，再存入数据
+    }
+    
+    // 弹出：取出栈顶元素
+    T& Pop() {
+        assert(!IsEmpty());           // 栈空则退出
+        return elements[top--];       // 返回栈顶数据，top减1
+    }
+    
+    // 取栈顶元素（不出栈）
+    T& GetTop() const {
+        assert(!IsEmpty());
+        return elements[top];
+    }
+    
+    // 判空
+    bool IsEmpty() const {
+        return top == -1;
+    }
+    
+    // 判满
+    bool IsFull() const {
+        return top == maxSize - 1;
+    }
+    
+    // 清空栈
+    void MakeEmpty() {
+        top = -1;
+    }
+    
+    // 打印栈内容
+    void PrintStack() const {
+        cout << "栈内容(从栈底到栈顶): ";
+        for (int i = 0; i <= top; i++) {
+            cout << elements[i] << " ";
+        }
+        cout << endl;
+    }
+};
+```
+
+**顺序栈操作图解**：
+
+```
+初始空栈:
+┌────┐
+│top=-1│
+└────┘
+
+Push(10):           Push(20):           Push(30):
+┌────┐              ┌────┐              ┌────┐
+│top=1 │             │top=2 │             │top=2 │
+├────┤              ├────┤              ├────┤
+│ 20 │←top          │ 30 │←top          │ 30 │
+├────┤              ├────┤              ├────┤
+│ 10 │              │ 20 │              │ 20 │
+├────┤              ├────┤              ├────┤
+│    │              │ 10 │              │ 10 │
+└────┘              └────┘              └────┘
+
+Pop(): 取出30，top回到1
+┌────┐
+│top=1 │
+├────┤
+│ 20 │←top
+├────┤
+│ 10 │
+└────┘
+```
+
+#### 6.2.3 顺序栈使用示例
+
+```cpp
+int main() {
+    int i;
+    int a[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    int b[10];
+    
+    Stack<int> istack(10);
+    
+    // 压栈：将a数组中的元素全部压入栈
+    for (i = 0; i < 10; i++) {
+        istack.Push(a[i]);
+    }
+    
+    // 检查是否栈满
+    if (istack.IsFull()) {
+        cout << "栈满" << endl;
+    }
+    
+    cout << "压栈后: ";
+    istack.PrintStack();
+    
+    // 弹栈：将栈中元素弹出并存入b数组
+    for (i = 0; i < 10; i++) {
+        b[i] = istack.Pop();
+    }
+    
+    // 检查是否栈空
+    if (istack.IsEmpty()) {
+        cout << "栈空" << endl;
+    }
+    
+    cout << "弹栈结果: ";
+    for (i = 0; i < 10; i++) {
+        cout << b[i] << "\t";
+    }
+    cout << endl;
+    
+    return 0;
+}
+```
+
+**运行结果**：
+```
+栈满
+压栈后: 栈内容(从栈底到栈顶): 0 1 2 3 4 5 6 7 8 9 
+栈空
+弹栈结果: 9	8	7	6	5	4	3	2	1	0	
+```
+
+**注意**：后进先出，所以弹栈顺序是 `9, 8, 7, 6, 5, 4, 3, 2, 1, 0`。
+
+#### 6.2.4 链栈的类模板
+
+**链栈**：用链表实现的栈，栈顶在链表头部。
+
+```cpp
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+// 链栈结点类模板
+template<typename T>
+class Node {
+private:
+    T info;              // 结点数据
+    Node<T>* link;        // 指向下一个结点的指针
+    
+public:
+    Node(T data = 0, Node<T>* next = nullptr) {
+        info = data;
+        link = next;
+    }
+    
+    friend class Stacklink<T>;
+};
+
+// 链栈类模板
+template<typename T>
+class Stacklink {
+private:
+    Node<T>* top;         // 栈顶指针（指向链表头结点）
+    
+public:
+    // 构造函数：空栈
+    Stacklink() {
+        top = nullptr;
+    }
+    
+    // 析构函数
+    ~Stacklink() {
+        MakeEmpty();
+    }
+    
+    // 压栈
+    void Push(const T& data) {
+        // 在链表头部插入新结点
+        top = new Node<T>(data, top);
+    }
+    
+    // 弹栈
+    T Pop() {
+        assert(!IsEmpty());
+        Node<T>* temp = top;
+        T data = temp->info;    // 保存数据
+        top = top->link;        // 栈顶下移
+        delete temp;            // 释放原栈顶结点
+        return data;
+    }
+    
+    // 取栈顶元素
+    T& GetTop() const {
+        assert(!IsEmpty());
+        return top->info;
+    }
+    
+    // 判空
+    bool IsEmpty() const {
+        return top == nullptr;
+    }
+    
+    // 清空栈
+    void MakeEmpty() {
+        while (top != nullptr) {
+            Node<T>* temp = top;
+            top = top->link;
+            delete temp;
+        }
+    }
+};
+```
+
+**链栈示意图**：
+
+```
+链栈（无表头）:
+      top
+       ↓
+    ┌───────┐    ┌───────┐    ┌───────┐
+    │ data1 │───→│ data2 │───→│ data3 │───→ NULL
+    │(栈顶)  │    │       │    │(栈底)  │
+    └───────┘    └───────┘    └───────┘
+
+压栈Push(x):         弹栈Pop():
+    top                  top
+     ↓                    ↓
+  ┌───────┐          ┌───────┐    ┌───────┐
+  │   x   │──┐       │ data1 │───→│ data2 │───→ NULL
+  ├───────┤  │       ├───────┤    ├───────┤
+  │ data1 │──┼───    │ data2 │    │ data3 │
+  ├───────┤  │       └───────┘    └───────┘
+  │ data2 │──┘
+  └───────┘
+```
+
+#### 6.2.5 顺序栈 vs 链栈
+
+| 特性 | 顺序栈 | 链栈 |
+|------|--------|------|
+| **存储方式** | 数组（连续内存） | 链表（分散内存） |
+| **访问方式** | 可随机访问 | 只能顺序访问栈顶 |
+| **内存管理** | 预先分配固定大小 | 按需分配，动态扩展 |
+| **优点** | 实现简单，速度快 | 不会溢出，可无限增长 |
+| **缺点** | 可能溢出（容量有限） | 每个结点多一个指针开销 |
+| **适用场景** | 已知最大容量，频繁访问 | 容量不确定，插入删除频繁 |
+
+**选择建议**：
+- 如果能估计最大数据量 → 顺序栈
+- 如果数据量不可预知 → 链栈
+
+#### 6.2.6 栈的应用
+
+##### 应用1：函数调用
+
+**原理**：函数调用时，系统使用栈保存调用信息和局部变量。
+
+```
+函数调用栈示例:
+
+main() {
+    fun1();          ← 入栈
+}
+
+fun1() {
+    fun2();          ← 入栈
+}
+
+fun2() {             ← 出栈（最后调用，最先返回）
+    ...
+}
+```
+
+```
+调用栈状态变化:
+
+调用前:                    fun1调用时:              fun2调用时:
+┌─────────┐                ┌─────────┐              ┌─────────┐
+│  main   │                │  main   │              │  main   │
+│  栈帧   │                │  栈帧   │              │  栈帧   │
+└─────────┘                └─────────┘              └─────────┘
+                              ↑                        ↑
+                             top                     top
+                          ┌─────────┐            ┌─────────┐
+                          │  fun1   │            │  fun1   │
+                          │  栈帧   │            │  栈帧   │
+                          └─────────┘            └─────────┘
+                                                      ↑
+                                                   top
+                                                ┌─────────┐
+                                                │  fun2   │
+                                                │  栈帧   │
+                                                └─────────┘
+```
+
+**栈帧包含**：参数、返回地址、局部变量
+
+##### 应用2：十进制转R进制
+
+**算法**：除R取余，余数入栈，余数为0时结束，最后弹栈输出。
+
+```cpp
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+// 顺序栈类（简化版）
+template<typename T>
+class Stack {
+private:
+    int top;
+    T* elements;
+    int maxSize;
+public:
+    Stack(int size = 20) {
+        maxSize = size;
+        top = -1;
+        elements = new T[maxSize];
+    }
+    ~Stack() { delete[] elements; }
+    void Push(const T& data) { elements[++top] = data; }
+    T& Pop() { return elements[top--]; }
+    bool IsEmpty() const { return top == -1; }
+};
+
+// 十进制转换为R进制
+void DecChange(int decimal, int R) {
+    Stack<char> stack(10);
+    
+    // 除R取余，余数入栈
+    while (decimal > 0) {
+        int remainder = decimal % R;
+        // 转换为字符：10-15转为A-F
+        char c = (remainder < 10) ? (remainder + '0') : (remainder - 10 + 'A');
+        stack.Push(c);
+        decimal /= R;
+    }
+    
+    // 输出转换结果
+    cout << "转换为" << R << "进制为: ";
+    while (!stack.IsEmpty()) {
+        cout << stack.Pop();
+    }
+    cout << endl;
+}
+
+int main() {
+    // 十进制938转换为八进制
+    DecChange(938, 8);   // 输出: 1652
+    
+    // 十进制100转换为十六进制
+    DecChange(100, 16);  // 输出: 64
+    
+    // 十进制10转换为二进制
+    DecChange(10, 2);    // 输出: 1010
+    
+    return 0;
+}
+```
+
+**转换过程图解**（以938转八进制为例）：
+
+```
+938 ÷ 8 = 117 ... 2  →  入栈
+117 ÷ 8 = 14  ... 5  →  入栈
+14  ÷ 8 = 1   ... 6  →  入栈
+1   ÷ 8 = 0   ... 1  →  入栈
+
+栈状态: (栈底→栈顶)
+┌─────┬─────┬─────┬─────┐
+│  1  │  6  │  5  │  2  │
+└─────┴─────┴─────┴─────┘
+
+弹栈输出: 1 6 5 2
+
+所以 938(十进制) = 1652(八进制)
+```
+
+##### 应用3：括号匹配
+
+**算法**：从左到右扫描字符串，遇到左括号压栈，遇到右括号弹栈匹配。
+
+```cpp
+#include <iostream>
+#include <cstring>
+using namespace std;
+
+// 字符栈（简化版）
+class CharStack {
+private:
+    char* data;
+    int top;
+    int maxSize;
+public:
+    CharStack(int size = 100) {
+        maxSize = size;
+        top = -1;
+        data = new char[maxSize];
+    }
+    ~CharStack() { delete[] data; }
+    void Push(char c) { data[++top] = c; }
+    char Pop() { return data[top--]; }
+    bool IsEmpty() const { return top == -1; }
+    char GetTop() const { return data[top]; }
+};
+
+// 括号匹配函数
+bool IsMatch(const char* expr) {
+    CharStack stack(strlen(expr));
+    
+    for (int i = 0; expr[i] != '\0'; i++) {
+        char c = expr[i];
+        
+        if (c == '(' || c == '[' || c == '{') {
+            // 左括号：压栈
+            stack.Push(c);
+        } 
+        else if (c == ')' || c == ']' || c == '}') {
+            // 右括号：弹栈匹配
+            if (stack.IsEmpty()) {
+                cout << "错误：多余的右括号 '" << c << "'" << endl;
+                return false;
+            }
+            
+            char left = stack.Pop();
+            if ((c == ')' && left != '(') ||
+                (c == ']' && left != '[') ||
+                (c == '}' && left != '{')) {
+                cout << "错误：括号不匹配 '" << left << "' 与 '" << c << "'" << endl;
+                return false;
+            }
+        }
+    }
+    
+    // 检查栈是否为空
+    if (!stack.IsEmpty()) {
+        cout << "错误：有未匹配的左括号" << endl;
+        return false;
+    }
+    
+    return true;
+}
+
+int main() {
+    const char* expr1 = "(a + b) * [c - {d / e}]";
+    const char* expr2 = "(a + b) * [c - {d / e}";
+    const char* expr3 = "(a + b) * c] - d}";
+    
+    cout << expr1 << " : " << (IsMatch(expr1) ? "匹配" : "不匹配") << endl;
+    cout << expr2 << " : " << (IsMatch(expr2) ? "匹配" : "不匹配") << endl;
+    cout << expr3 << " : " << (IsMatch(expr3) ? "匹配" : "不匹配") << endl;
+    
+    return 0;
+}
+```
+
+**匹配过程图解**：
+
+```
+表达式: (a + b) * [c - {d / e}]
+
+扫描过程:
+字符    操作        栈状态
+─────────────────────────────
+(       压栈        [(]
+a       忽略        [(]
++       忽略        [(]
+b       忽略        [(]
+)       匹配弹栈    []  ← 匹配成功！
+*       忽略        []
+[       压栈        [[]
+c       忽略        [[]
+-       忽略        [[]
+{       压栈        [[[
+d       忽略        [[[]
+/       忽略        [[[]
+e       忽略        [[[]
+}       匹配弹栈    [[]  ← 匹配成功！
+]       匹配弹栈    []  ← 匹配成功！
+
+最终栈空，匹配成功！
+```
+
+##### 应用4：表达式计算
+
+**中缀表达式**：我们平常使用的表达式，如 `a + b * c`
+
+**后缀表达式（逆波兰式）**：运算符在操作数后面，如 `a b c * +`
+
+**中缀转后缀算法**：
+1. 数字直接输出
+2. 左括号压栈
+3. 运算符：与栈顶比较优先级
+   - 栈顶优先级低（或左括号）：压栈
+   - 栈顶优先级高：弹栈输出，然后压栈
+4. 右括号：弹栈输出直到匹配左括号
+
+```cpp
+#include <iostream>
+#include <cstring>
+#include <cctype>
+using namespace std;
+
+class CharStack {
+private:
+    char* data;
+    int top;
+    int maxSize;
+public:
+    CharStack(int size = 100) {
+        maxSize = size;
+        top = -1;
+        data = new char[maxSize];
+    }
+    ~CharStack() { delete[] data; }
+    void Push(char c) { data[++top] = c; }
+    char Pop() { return data[top--]; }
+    bool IsEmpty() const { return top == -1; }
+    char GetTop() const { return data[top]; }
+    int Priority(char op) const {
+        if (op == '+' || op == '-') return 1;
+        if (op == '*' || op == '/') return 2;
+        return 0;  // 左括号最低
+    }
+};
+
+// 中缀转后缀
+void InfixToPostfix(const char* infix, char* postfix) {
+    CharStack stack(strlen(infix));
+    int j = 0;
+    
+    for (int i = 0; infix[i] != '\0'; i++) {
+        char c = infix[i];
+        
+        if (isalnum(c)) {
+            // 操作数：直接输出
+            postfix[j++] = c;
+        }
+        else if (c == '(') {
+            // 左括号：压栈
+            stack.Push(c);
+        }
+        else if (c == ')') {
+            // 右括号：弹栈直到左括号
+            while (!stack.IsEmpty() && stack.GetTop() != '(') {
+                postfix[j++] = stack.Pop();
+            }
+            stack.Pop();  // 弹出左括号
+        }
+        else if (c == '+' || c == '-' || c == '*' || c == '/') {
+            // 运算符：处理优先级
+            while (!stack.IsEmpty() && 
+                   stack.GetTop() != '(' && 
+                   stack.Priority(stack.GetTop()) >= stack.Priority(c)) {
+                postfix[j++] = stack.Pop();
+            }
+            stack.Push(c);
+        }
+    }
+    
+    // 弹出剩余运算符
+    while (!stack.IsEmpty()) {
+        postfix[j++] = stack.Pop();
+    }
+    postfix[j] = '\0';
+}
+
+int main() {
+    const char* infix = "a+b*c";
+    char postfix[100];
+    
+    InfixToPostfix(infix, postfix);
+    cout << "中缀: " << infix << endl;
+    cout << "后缀: " << postfix << endl;
+    
+    const char* infix2 = "(a+b)*c";
+    InfixToPostfix(infix2, postfix);
+    cout << "中缀: " << infix2 << endl;
+    cout << "后缀: " << postfix << endl;
+    
+    return 0;
+}
+```
+
+**转换示例**：
+
+```
+中缀表达式: a + b * c + (d - e) * f
+
+转换过程:
+┌─────┬────────┬──────────────────┐
+│ 扫描 │  栈(底→顶) │  输出           │
+├─────┼────────┼──────────────────┤
+│ a   │ 空     │ a                │
+│ +   │ +      │ a                │
+│ b   │ +      │ ab               │
+│ *   │ +*     │ ab               │  *优先级高于+
+│ c   │ +*     │ abc              │
+│ +   │ +      │ abc*+            │  *弹栈，+压栈
+│ (   │ +(     │ abc*+            │
+│ d   │ +(     │ abc*+d           │
+│ -   │ +(-    │ abc*+d           │
+│ e   │ +(-    │ abc*+de          │
+│ )   │ +      │ abc*+de-         │  弹栈至(
+│ *   │ +*     │ abc*+de-         │
+│ f   │ +*     │ abc*+de-f        │
+│ 结束│ 空     │ abc*+de-*f+      │  弹栈全部
+└─────┴────────┴──────────────────┘
+
+结果: abc*+de-*f+
+验证: a b c * + d e - f * +
+```
+
+---
+
+### 6.3 队列
+
+#### 6.3.1 队列的基本概念
+
+**队列（Queue）**：只允许在一端插入，另一端删除的线性表。
+
+**特点**：**先进先出（FIFO：First In First Out）**
+
+```
+┌─────────────────────────────────────────────────┐
+│                    队  列                       │
+├─────────────────────────────────────────────────┤
+│  队头(front)                              队尾  │
+│    ↓                                   (rear)   │
+│    │                                     ↑      │
+│  出队                                  入队     │
+│    │                                     │      │
+│    a1   a2   a3   ...   an-1   an        │      │
+│  ←───←──←──←──────────────────────←──────┘      │
+│                                                 │
+│  元素移动方向 ─────────────────────→           │
+└─────────────────────────────────────────────────┘
+```
+
+**生活实例**：
+- **排队买东西**：先排队的先买到
+- **打印机队列**：先提交的文档先打印
+
+**基本操作**：
+- **进队（EnQueue）**：在队尾插入元素
+- **出队（DeQueue）**：从队头删除元素
+- **取队头（GetFront）**：查看队头元素（不出队）
+
+#### 6.3.2 循环队列
+
+**问题**：用普通数组实现队列时，随着入队出队，元素会逐渐向数组末端移动，造成"假溢出"。
+
+**解决方案**：循环队列 - 把数组想象成环形，首尾相连。
+
+```
+普通队列的问题（假溢出）:
+
+初始:      入队3个:     再出队2个:   再入队2个:
+┌────┐    ┌────┐      ┌────┐      ┌────┐
+│ a1 │    │ a1 │      │    │      │    │
+├────┤    ├────┤      ├────┤      ├────┤
+│ a2 │    │ a2 │      │ a2 │      │ c1 │
+├────┤    ├────┤      ├────┤      ├────┤
+│ a3 │    │ a3 │      │ a3 │      │ c2 │
+├────┤    └────┘      ├────┤      ├────┤
+│    │               │    │      ├────┤
+└────┘               └────┘      ├────┤  ← 无法继续入队！
+                              明明前面还有空位
+
+循环队列（环形）:
+
+初始:           入队3个:        再出队2个:     再入队2个:
+┌────┐        ┌────┐         ┌────┐        ┌────┐
+│    │        │ a1 │         │    │        │ c1 │
+├────┤        ├────┤         ├────┤        ├────┤
+│    │←front  │ a2 │←rear    │ a2 │←rear   │ c2 │
+└────┘        └────┘         └────┘        └────┘
+              front           front
+```
+
+**循环队列的指针移动**：
+
+```cpp
+// 普通队列
+rear++;              // 一直向右移动
+
+// 循环队列（取模实现循环）
+rear = (rear + 1) % maxSize;    // 到达末端后回到开头
+front = (front + 1) % maxSize;
+```
+
+#### 6.3.3 循环队列类模板
+
+```cpp
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+// 循环队列类模板
+template <typename T>
+class Queue {
+private:
+    int rear;            // 队尾指针
+    int front;           // 队头指针
+    T* elements;         // 存放队列元素的数组
+    int maxSize;         // 队列最大容量（实际能存maxSize-1个元素）
+
+public:
+    // 构造函数
+    Queue(int ms = 18) {
+        maxSize = ms;
+        elements = new T[maxSize];
+        rear = front = 0;     // 初始状态：队空
+        assert(elements != nullptr);
+    }
+    
+    // 析构函数
+    ~Queue() {
+        delete[] elements;
+    }
+    
+    // 判空
+    bool IsEmpty() const {
+        return rear == front;
+    }
+    
+    // 判满（牺牲一个空间来区分队空和队满）
+    bool IsFull() const {
+        return (rear + 1) % maxSize == front;
+    }
+    
+    // 求队列长度
+    int Length() const {
+        return (rear - front + maxSize) % maxSize;
+    }
+    
+    // 进队
+    void EnQue(const T& data) {
+        assert(!IsFull());                // 队满则退出
+        rear = (rear + 1) % maxSize;       // 队尾指针循环加1
+        elements[rear] = data;             // 存入数据
+    }
+    
+    // 出队
+    T DeQue() {
+        assert(!IsEmpty());                // 队空则退出
+        front = (front + 1) % maxSize;     // 队头指针循环加1
+        return elements[front];             // 返回队头数据
+    }
+    
+    // 取队头元素
+    T& GetFront() const {
+        assert(!IsEmpty());
+        return elements[(front + 1) % maxSize];
+    }
+    
+    // 置空
+    void MakeEmpty() {
+        front = rear = 0;
+    }
+};
+```
+
+**循环队列操作图解**：
+
+```
+初始状态（队空）:
+┌────┬────┬────┬────┬────┐
+│    │    │    │    │    │
+└────┴────┴────┴────┴────┘
+ ↑                          ↑
+front                      rear
+(rear == front 表示队空)
+
+EnQue(A), EnQue(B), EnQue(C):
+┌────┬────┬────┬────┬────┐
+│  C │    │    │    │  A │ B
+└────┴────┴────┴────┴────┘
+                        ↑  ↑
+                      front rear
+                      
+DeQue(): 取出A
+┌────┬────┬────┬────┬────┐
+│  C │    │    │    │  A │ B
+└────┴────┴────┴────┴────┘
+      ↑          ↑
+    front       rear
+
+EnQue(D), EnQue(E):
+┌────┬────┬────┬────┬────┐
+│  C │  D │  E │    │  A │ B
+└────┴────┴────┴────┴────┘
+              ↑  ↑
+            front rear
+            (循环回到开头)
+
+队满状态:
+┌────┬────┬────┬────┬────┐
+│  C │  D │    │    │    │
+└────┴────┴────┴────┴────┘
+  ↑                      ↑
+ rear                   front
+(rear+1)%maxSize == front 表示队满)
+```
+
+#### 6.3.4 循环队列使用示例
+
+```cpp
+int main() {
+    int i;
+    Queue<char> que;                   // 默认18个元素队列，可用17个
+    
+    char str[] = "abcdefghijklmnop";   // 16个字符
+    
+    que.MakeEmpty();                    // 置空
+    
+    // 进队
+    for (i = 0; i < 16; i++) {
+        que.EnQue(str[i]);
+    }
+    
+    // 检查队满
+    if (que.IsFull()) {
+        cout << "队满" << endl;
+    }
+    
+    // 输出队列长度
+    cout << "队中元素个数: " << que.Length() << endl;
+    
+    // 出队（先进先出）
+    cout << "出队顺序: ";
+    for (i = 0; i < 16; i++) {
+        cout << que.DeQue();
+    }
+    cout << endl;
+    
+    // 检查队空
+    if (que.IsEmpty()) {
+        cout << "队空" << endl;
+    }
+    cout << "队中元素个数: " << que.Length() << endl;
+    
+    return 0;
+}
+```
+
+**运行结果**：
+```
+队满
+队中元素个数: 16
+出队顺序: abcdefghijklmnop
+队空
+队中元素个数: 0
+```
+
+#### 6.3.5 链队（链表实现的队列）
+
+**链队**：用链表实现的队列，队头在链表头部，队尾在链表尾部。
+
+```cpp
+#include <iostream>
+#include <cassert>
+using namespace std;
+
+// 链队结点类模板
+template<typename T>
+class Node {
+private:
+    T info;           // 结点数据
+    Node* link;       // 指向下一个结点
+    
+public:
+    Node(T data = 0, Node* next = nullptr) {
+        info = data;
+        link = next;
+    }
+    
+    friend class Queuelink<T>;
+};
+
+// 链队列类模板
+template<typename T>
+class Queuelink {
+private:
+    Node<T>* front;    // 队头指针
+    Node<T>* rear;     // 队尾指针
+
+public:
+    // 构造函数
+    Queuelink() {
+        front = rear = nullptr;    // 空队列
+    }
+    
+    // 析构函数
+    ~Queuelink() {
+        Empty();
+    }
+    
+    // 判空
+    bool IsEmpty() {
+        return front == nullptr;
+    }
+    
+    // 入队
+    void EnQuelink(const T& data) {
+        if (front == nullptr) {
+            // 第一个元素
+            front = rear = new Node<T>(data, nullptr);
+        } else {
+            // 新结点接到队尾
+            rear = rear->link = new Node<T>(data, nullptr);
+        }
+    }
+    
+    // 出队
+    T DeQuelink() {
+        assert(!IsEmpty());
+        Node<T>* temp = front;
+        T data = temp->info;          // 保存数据
+        front = front->link;          // 队头下移
+        delete temp;                  // 释放原队头
+        return data;
+    }
+    
+    // 取队头元素
+    T& GetFront() {
+        assert(!IsEmpty());
+        return front->info;
+    }
+    
+    // 求队列长度
+    int Length() {
+        int count = 0;
+        Node<T>* p = front;
+        while (p != nullptr) {
+            count++;
+            p = p->link;
+        }
+        return count;
+    }
+    
+    // 清空队列
+    void Empty() {
+        Node<T>* temp;
+        while (front != nullptr) {
+            temp = front;
+            front = front->link;
+            delete temp;
+        }
+        rear = nullptr;
+    }
+};
+```
+
+**链队示意图**：
+
+```
+链队结构:
+
+队头                              队尾
+↓                                 ↓
+┌────────┐    ┌────────┐    ┌────────┐    ┌────────┐
+│ node1  │───→│ node2  │───→│ node3  │───→│ node4  │───→ NULL
+│(front) │    │        │    │        │    │ (rear) │
+└────────┘    └────────┘    └────────┘    └────────┘
+
+空队列:
+front = rear = nullptr
+
+只有一个结点:
+front = rear = node1
+```
+
+#### 6.3.6 循环队列 vs 链队
+
+| 特性 | 循环队列 | 链队 |
+|------|----------|------|
+| **存储方式** | 数组（固定大小） | 链表（动态大小） |
+| **长度限制** | 预先确定，可能满 | 理论上无限制 |
+| **内存利用** | 固定，空间利用率固定 | 按需分配，但有指针开销 |
+| **入队出队** | O(1) | O(1) |
+| **访问队头** | O(1) | O(1) |
+
+**选择建议**：
+- 能确定最大数据量 → 循环队列（更快）
+- 数据量不确定 → 链队（更灵活）
+
+#### 6.3.7 队列应用场景
+
+1. **任务调度**：操作系统中的任务队列
+2. **广度优先搜索（BFS）**：图的遍历
+3. **消息队列**：进程间通信
+4. **打印队列**：多文档打印
+5. **键盘缓冲区**：按键输入缓冲
+
+---
+
+### 6.4 栈与队列总结
+
+#### 对比表
+
+| 特性 | 栈 | 队列 |
+|------|-----|------|
+| **存取规则** | LIFO（后进先出） | FIFO（先进先出） |
+| **操作端** | 一端（栈顶） | 两端（头删尾插） |
+| **典型应用** | 函数调用、括号匹配、表达式求值 | 任务调度、缓存、宽度优先搜索 |
+
+#### 实现方式对比
+
+| 实现 | 栈 | 队列 |
+|------|-----|------|
+| **顺序实现** | 顺序栈（数组） | 循环队列（数组） |
+| **链式实现** | 链栈（链表） | 链队（链表） |
+
+#### 选择建议
+
+```
+需要后进先出？     ──→  栈
+    │
+    └── 数据量确定？  ──→  顺序栈
+        │                 
+        └── 数据量不确定？  ──→  链栈
+
+需要先进先出？     ──→  队列
+    │
+    └── 数据量确定？  ──→  循环队列
+        │                 
+        └── 数据量不确定？  ──→  链队
+```
+
+---
+
+## 7. 常见问题与优化
+
+### 7.1 选择合适的数据结构
+
+| 场景 | 推荐结构 |
+|------|----------|
+| 需要快速随机访问 | 数组/顺序表 |
+| 频繁插入删除 | 链表/双向链表 |
+| 需要保持有序 | 有序数组 |
+| 需要快速查找 | 二叉搜索树/哈希表 |
+| 需要后进先出 | 栈 |
+| 需要先进先出 | 队列 |
+| 需要两端操作 | 双向链表/双端队列 |
+
+### 7.2 排序算法选择建议
+
+| 数据规模 | 推荐算法 |
+|----------|----------|
+| n ≤ 50 | 直接插入排序、简单选择排序 |
+| n 较大但基本有序 | 希尔排序、改进插入排序 |
+| n 很大 | 快速排序、归并排序 |
+| 数据有外部排序需求 | 归并排序 |
+
+### 7.3 时间复杂度速查表
+
+| 操作 | 顺序表 | 链表 | 顺序栈/队列 | 链栈/链队 |
+|------|--------|------|-------------|-----------|
+| 访问 | O(1) | O(n) | O(1) | O(1) |
+| 头部插入 | O(n) | O(1) | - | - |
+| 尾部插入 | O(1) | O(1) | - | - |
+| 任意位置插入 | O(n) | O(n) | - | - |
 
 ## 4. 排序算法
 
