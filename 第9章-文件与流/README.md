@@ -2709,4 +2709,824 @@ int main() {
 
 ---
 
-*返回 [主目录](../README.md)*
+# 第11讲 流类库输入输出控制-2
+
+> 东南大学 C++ 课件笔记 | 王文博 2026
+
+---
+
+## 目录
+
+1. [文本文件的读写（续）](#1-文本文件的读写续)
+2. [二进制文件的读写](#2-二进制文件的读写)
+3. [文件与对象](#3-文件与对象)
+
+---
+
+## 1. 文本文件的读写（续）
+
+### 1.1 例3：复制文件
+
+**分析：**
+1. 打开源文件（输入文件流对象）
+2. 打开目的文件（输出文件流对象）
+3. 从源文件中依次读取一个字符
+4. 把所读的字符写入目的文件中，直到把源文件中的所有字符读写完为止
+
+**方法一：get/put 逐字符复制**
+
+```cpp
+#include <iostream>
+#include <fstream>
+using namespace std;
+
+int main() {
+    char filename1[256], filename2[256];
+    cout << "输入源文件名：";
+    cin >> filename1;
+    cout << "输入目的文件名：";
+    cin >> filename2;
+
+    ifstream infile(filename1, ios::in);
+    ofstream outfile(filename2);
+
+    if (!infile)  { cerr << "open error!" << endl; exit(1); }
+    if (!outfile) { cerr << "open error!" << endl; exit(1); }
+
+    char ch;
+    while (infile.get(ch))   // 依次从源文件取一个字符，直到文件结束
+        outfile.put(ch);      // 将取的字符写到目的文件中
+
+    infile.close();
+    outfile.close();
+    return 0;
+}
+```
+
+**方法二：>> / << 运算符复制**
+
+```cpp
+// 注意：>> 默认跳过空格，需要取消该设置
+infile.unsetf(ios::skipws);  // 设置为不要跳过文件中的空格
+while (infile >> ch)
+    outfile << ch;
+```
+
+> ⚠️ `>>` 运算符默认会跳过空白字符（空格、制表符、换行），用 `unsetf(ios::skipws)` 取消该行为。
+
+### 1.2 例4：文本文件按行复制 — getline
+
+使用 `getline` 成员函数按行读取，配合字符串处理。
+
+**文件打开失败的容错处理：**
+
+```cpp
+while (!infile) {
+    cout << "源文件找不到,请重新输入路径文件名:" << endl;
+    infile.clear(0);     // 清状态字
+    cin >> filename1;
+    infile.open(filename1, ios::in);
+}
+
+while (!outfile) {
+    cout << "源文件找不到,请重新输入路径文件名:" << endl;
+    outfile.clear(0);    // 清状态字
+    cin >> filename2;
+    outfile.open(filename2, ios::out);
+}
+```
+
+> ⚠️ 文件打开失败后，流的状态字被置位，必须用 `clear(0)` 清零后才能重新使用该流对象。
+
+**按行复制的核心逻辑：**
+
+```cpp
+char buff[256];
+while (1) {
+    infile.getline(buff, 256);
+
+    if (!infile.eof()) {
+        if (infile.rdstate() == 0)
+            outfile << buff << '\n';   // 流正常，读到回车符但不提取，手动加换行
+        else {
+            outfile << buff;           // 未读到回车符，流不正常
+            infile.clear(0);           // 清零状态字
+        }
+    } else {
+        if (infile.gcount() != 0)
+            outfile << buff;           // 最后一行可能没有换行符
+        break;
+    }
+}
+```
+
+**关键点：**
+- `getline` 遇到换行符停止读取，但**不提取**换行符到缓冲区
+- `rdstate() == 0` 表示流正常（读到了换行符）
+- 流不正常时（如一行超过指定长度），需要 `clear(0)` 清除状态
+- `gcount()` 返回上次读取的实际字符数
+
+### 1.3 读取数值文件时的问题
+
+```cpp
+ifstream input("score.txt");
+double sum = 0;
+double number;
+while (!input.eof()) {
+    input >> number;
+    cout << number << " ";
+    sum += number;
+}
+cout << endl;
+cout << sum;
+input.close();
+```
+
+> ⚠️ **这段代码有问题！** 当读到文件末尾时，`eof()` 检测的是上一次操作是否遇到了 EOF，而最后一次 `>> number` 会失败，导致 `number` 的值不被更新（可能是上一次的值或垃圾值），`sum` 会多加一个错误数据。
+
+**正确写法：**
+
+```cpp
+while (input >> number) {   // 直接判断读取是否成功
+    cout << number << " ";
+    sum += number;
+}
+```
+
+### 1.4 例4补充：显示文件内容函数
+
+```cpp
+void display_file(char *filename) {
+    ifstream infile(filename, ios::in);
+    if (!infile) { cerr << "open error!" << endl; exit(1); }
+
+    char ch;
+    while (infile.get(ch))
+        cout.put(ch);
+
+    cout << endl;
+    infile.close();
+}
+
+// 调用
+int main() {
+    display_file("f3.dat");
+    return 0;
+}
+```
+
+### 1.5 思考：删除 C++ 源文件中的注释
+
+**分析：**
+1. 把源文件看做字符流，依次读入每个字符
+2. 若字符处于注释中则舍弃，否则写入新文件
+3. 注释有两种：`//` 和 `/* */`
+
+**处理逻辑：**
+- 当前字符 `/`，下一个字符是 `/` → 读出本行除 `\n` 外所有字符舍弃
+- 当前字符 `/`，下一个字符是 `*` → 空读，直至遇到 `*/`
+
+```cpp
+char ch1, ch2, temp[1000];
+int state = 1;   // state=1 正常代码区, state=2 块注释区
+
+while (infile.get(ch1)) {
+    ch2 = infile.peek();   // 预看下一个字符但不提取
+
+    if (state == 1) {
+        if (ch1 == '/' && ch2 == '*') {
+            infile.get();   // 跳过 '*'
+            state = 2;      // 进入块注释区
+        } else if (ch1 == '/' && ch2 == '/') {
+            infile.get(temp, sizeof(temp));  // 丢弃本行剩余内容
+        } else {
+            outfile.put(ch1);
+            cout << ch1;
+        }
+    } else if (state == 2) {
+        if (ch1 == '*' && ch2 == '/') {
+            infile.get();   // 跳过 '/'
+            state = 1;      // 回到正常代码区
+        }
+    }
+}
+```
+
+> 💡 `peek()` 函数可以预读下一个字符但不移动文件指针，用于判断注释类型非常方便。
+
+### 1.6 例5：文本式对象数据文件的创建和读取
+
+**inventory 类定义：**
+
+```cpp
+class inventory {
+    char Description[20];   // 商品名称
+    char No[10];            // 货号
+    int Quantity;            // 数量
+    double Cost;             // 价格
+    double Retail;           // 零售价
+
+public:
+    inventory(char* = "#", char* = "0", int = 0, double = 0, double = 0);
+    friend ostream& operator<<(ostream&, inventory&);
+    friend istream& operator>>(istream&, inventory&);
+};
+```
+
+**重载 << 和 >> ：**
+
+```cpp
+// 重载 << — 格式化输出
+ostream& operator<<(ostream& dest, inventory& iv) {
+    dest << left << setw(20) << iv.Description << setw(10) << iv.No;
+    dest << right << setw(10) << iv.Quantity;
+    dest << setw(10) << iv.Cost << setw(10) << iv.Retail << endl;
+    return dest;
+}
+
+// 重载 >> — 从流中读取数据到对象
+istream& operator>>(istream& sour, inventory& iv) {
+    sour >> iv.Description >> iv.No >> iv.Quantity
+         >> iv.Cost >> iv.Retail;
+    return sour;
+}
+```
+
+**主函数：写入文件再读取**
+
+```cpp
+int main() {
+    inventory car1("夏利2000", "805637928", 156, 80000, 105000), car2;
+    inventory motor1("金城125", "93612575", 302, 10000, 13000), motor2;
+
+    // 写入文件
+    ofstream distfile("d:\\Ex9_9.data");
+    distfile << car1 << motor1;     // << 完成对象写入文件
+    distfile.close();
+
+    cout << car1;
+    cout << motor1;
+
+    // 从文件读取
+    // 分两次打开，可避免读文件时误改了源文件
+    ifstream sourfile("d:\\Ex9_9.data");
+    sourfile >> car2 >> motor2;     // >> 完成对象重构
+    sourfile.close();
+
+    cout << car2;
+    cout << motor2;
+    return 0;
+}
+```
+
+> 💡 `ofstream` 是 `ostream` 的派生类，`ifstream` 是 `istream` 的派生类。所以重载的 `<<` 和 `>>` 对文件流同样适用。
+
+---
+
+## 2. 二进制文件的读写
+
+### 2.1 什么是二进制文件
+
+文件中的信息不是字符数据，而是字节中的**二进制形式**的信息，因此又称为**字节文件**。
+
+- 用 `ios::binary` 指定为以二进制形式传送和存储
+- 二进制文件除了可以作为输入文件或输出文件外，还可以是既能输入又能输出的文件
+
+### 2.2 read 和 write 成员函数
+
+**函数原型：**
+
+```cpp
+// write: 将内存数据写入文件
+ostream& write(const char* buffer, int len);
+
+// read: 从文件读取数据到内存
+istream& read(char* buffer, int len);
+```
+
+> ⚠️ 地址参数要强制转换为 `char*` 类型。
+
+**示例：将结构体数组以二进制形式存入文件**
+
+```cpp
+struct student {
+    char name[20];
+    int num;
+    int age;
+    char sex;
+};
+
+int main() {
+    student stud[3] = {
+        {"Li", 1001, 18, 'f'},
+        {"Fun", 1002, 19, 'm'},
+        {"Wang", 1004, 17, 'f'}
+    };
+
+    ofstream outfile("stud.dat", ios::binary);
+    if (!outfile) { cerr << "open error" << endl; exit(1); }
+
+    // 逐个写入
+    for (int i = 0; i < 3; i++)
+        outfile.write((char*)&stud[i], sizeof(stud[i]));
+
+    // 或一次写入全部
+    // outfile.write((char*)&stud[0], sizeof(stud));
+
+    outfile.close();
+    return 0;
+}
+```
+
+**从二进制文件读取：**
+
+```cpp
+int main() {
+    student stud[3];
+    int i;
+
+    ifstream infile("stud.dat", ios::binary);
+    if (!infile) { cerr << "open error" << endl; exit(1); }
+
+    // 逐个读取
+    for (i = 0; i < 3; i++)
+        infile.read((char*)&stud[i], sizeof(stud[i]));
+
+    // 或一次读取全部
+    // infile.read((char*)&stud[0], sizeof(stud));
+
+    infile.close();
+
+    for (i = 0; i < 3; i++) {
+        cout << "NO." << i + 1 << endl;
+        cout << "name:" << stud[i].name << endl;
+        cout << "num:"  << stud[i].num  << endl;
+        cout << "age:"  << stud[i].age  << endl;
+        cout << "sex:"  << stud[i].sex  << endl << endl;
+    }
+    return 0;
+}
+```
+
+### 2.3 对象的二进制文件读写
+
+**inventory 类增加二进制读写方法：**
+
+```cpp
+class inventory {
+    string Description;
+    string No;
+    int Quantity;
+    double Cost;
+    double Retail;
+
+public:
+    // ...
+    void Bdatatofile(ofstream& dest);   // 写入二进制文件
+    void Bdatafromfile(ifstream& sour);  // 从二进制文件读取
+};
+```
+
+> ⚠️ 流类作为形式参数必须是引用。
+
+**写入方法：**
+
+```cpp
+void inventory::Bdatatofile(ofstream& dest) {
+    dest.write(Description.c_str(), 20);   // string 转为 const char*
+    dest.write(No.c_str(), 10);
+    dest.write((char*)&Quantity, sizeof(int));
+    dest.write((char*)&Cost, sizeof(double));
+    dest.write((char*)&Retail, sizeof(double));
+}
+```
+
+**读取方法：**
+
+```cpp
+void inventory::Bdatafromfile(ifstream& sour) {
+    char k[20];
+    sour.read(k, 20);
+    Description = k;
+    sour.read(k, 10);
+    No = k;
+    sour.read((char*)&Quantity, sizeof(int));
+    sour.read((char*)&Cost, sizeof(double));
+    sour.read((char*)&Retail, sizeof(double));
+}
+```
+
+> 💡 **读和写是完全对称的过程，次序决不能错。** `string` 类型的成员需要用 `c_str()` 转为 `const char*` 写入，读取时先读到 `char[]` 再赋给 `string`。
+
+**使用：**
+
+```cpp
+int main() {
+    inventory car1("夏利2000", "805637928", 156, 80000, 105000), car2;
+    inventory motor1("金城125", "93612575", 302, 10000, 13000), motor2;
+
+    // 写入二进制文件
+    ofstream ddatafile("ex9_10.data", ios::out | ios::binary);
+    car1.Bdatatofile(ddatafile);
+    motor1.Bdatatofile(ddatafile);
+    ddatafile.close();
+
+    // 从二进制文件读取
+    ifstream sdatafile("ex9_10.data", ios::in | ios::binary);
+    car2.Bdatafromfile(sdatafile);
+    if (sdatafile.eof() == 0) cout << "读文件成功" << endl;
+    cout << "对象car2:" << endl;
+    cout << car2;
+
+    motor2.Bdatafromfile(sdatafile);
+    if (sdatafile.eof() == 0) cout << "读文件成功" << endl;
+    cout << "对象motor2:" << endl;
+    cout << motor2;
+    sdatafile.close();
+
+    return 0;
+}
+```
+
+### 2.4 二进制文件拷贝
+
+使用 `read` 和 `write` 实现二进制文件拷贝，配合缓冲区提高效率：
+
+```cpp
+#include <fstream>
+#include <iostream>
+using namespace std;
+
+int main() {
+    char filename1[256], filename2[256];
+    char buff[4096];    // 4KB 缓冲区
+
+    cout << "输入源文件名:"; cin >> filename1;
+    cout << "输入目的文件名:"; cin >> filename2;
+
+    fstream infile(filename1, ios::in | ios::binary);
+    fstream outfile(filename2, ios::out | ios::binary);
+
+    if (!infile)  { cerr << "open error!" << endl; exit(1); }
+    if (!outfile) { cerr << "open error!" << endl; exit(1); }
+
+    int n;
+    while (!infile.eof()) {
+        infile.read(buff, 4096);
+        n = infile.gcount();         // 实际读入的字节数
+        outfile.write(buff, n);       // 把实际读入的字节数写到文件中
+    }
+
+    infile.close();
+    outfile.close();
+    // infile.clear();  // 若后续还需使用 infile，需 clear
+    return 0;
+}
+```
+
+> 💡 `gcount()` 返回上次 `read` 实际读入的字节数，确保最后一次写入不会多写。
+
+### 2.5 二进制文件特点
+
+- 可以控制字节长度，读写数据时不会出现二义性，**可靠性高**
+- 不知格式是无法读取的，**保密性好**
+- 文件结束后系统不会再读，但程序不会自动停下来，所以**要判断文件中是否已没有数据**
+- 写完数据后若没有关闭文件就立即开始读，须把文件定位指针移到文件头
+- 关闭文件后重新打开，文件定位指针自动在文件头
+
+### 2.6 与文件指针有关的流成员函数
+
+磁盘文件中有一个**文件指针**，指明当前应进行读写的位置。
+
+**文件指针控制函数：**
+
+| 函数 | 说明 |
+|------|------|
+| `seekg(streampos)` | 绝对定位输入指针 |
+| `seekg(streamoff, ios::seek_dir)` | 相对定位输入指针 |
+| `tellg()` | 返回输入指针当前位置 |
+| `seekp(streampos)` | 绝对定位输出指针 |
+| `seekp(streamoff, ios::seek_dir)` | 相对定位输出指针 |
+| `tellp()` | 返回输出指针当前位置 |
+
+> `g` = get（读），`p` = put（写）
+
+**指针移动的参照位置：**
+
+| 参照位置 | 含义 |
+|----------|------|
+| `ios::beg` | 文件开头（默认值） |
+| `ios::cur` | 指针当前位置 |
+| `ios::end` | 文件末尾 |
+
+**用法示例：**
+
+```cpp
+infile.seekg(100);                  // 输入指针移到第100字节位置
+infile.seekg(40, ios::beg);         // 从文件头向文件尾移动40字节
+infile.seekg(50, ios::cur);         // 从当前位置往文件头移动50字节
+outfile.seekp(75, ios::end);        // 从文件尾往文件头移动75字节
+```
+
+### 2.7 例：随机访问学生数据
+
+**需求：**
+1. 把5个学生数据存到磁盘文件
+2. 将第1、3、5个学生数据读入并显示
+3. 将第3个学生的数据修改后存回原有位置
+4. 读入修改后的5个学生数据并显示
+
+**关键设计：**
+- 文件工作方式指定为 `ios::in | ios::out | ios::binary`
+- 用 `seekg`/`seekp` 正确定位指针
+- 修改后用 `write` 重写数据
+
+```cpp
+#include <fstream>
+#include <iostream>
+using namespace std;
+
+struct student {
+    int num;
+    char name[20];
+    float score;
+};
+
+int main() {
+    student stud[5] = {
+        {1001, "Li", 85},
+        {1002, "Fun", 97.5},
+        {1004, "Wang", 54},
+        {1006, "Tan", 76.5},
+        {1010, "ling", 96}
+    };
+
+    // (1) 写入文件
+    fstream iofile("stud.dat", ios::in | ios::out | ios::binary);
+    if (!iofile) { cerr << "open error!" << endl; exit(1); }
+    iofile.write((char*)&stud[0], sizeof(stud));
+
+    // (2) 读取第1、3、5个学生
+    student stud1[5];
+    for (int i = 0; i < 5; i = i + 2) {
+        iofile.seekg(i * sizeof(stud[i]), ios::beg);  // 定位于第0,2,4学生数据开头
+        iofile.read((char*)&stud1[i/2], sizeof(stud1[0]));
+        cout << stud1[i/2].num << " " << stud1[i/2].name
+             << " " << stud1[i/2].score << endl;
+    }
+    cout << endl;
+
+    // (3) 修改第3个学生的数据
+    stud[2].num = 1012;
+    strcpy(stud[2].name, "Wu");
+    stud[2].score = 60;
+    iofile.seekp(2 * sizeof(stud[0]), ios::beg);  // 定位于第3个学生数据开头
+    iofile.write((char*)&stud[2], sizeof(stud[2]));
+
+    // (4) 重新从头读取所有学生
+    iofile.seekg(0, ios::beg);
+    for (int i = 0; i < 5; i++) {
+        iofile.read((char*)&stud[i], sizeof(stud[i]));
+        cout << stud[i].num << " " << stud[i].name
+             << " " << stud[i].score << endl;
+    }
+
+    iofile.close();
+    return 0;
+}
+```
+
+### 2.8 课堂练习题
+
+**题目1：** 将内存中的数组 `int val[6]={2,4,8,9};` 写入二进制文件 `file.dat`，以下能够正确实现写入的语句是：
+
+| 选项 | 代码 |
+|------|------|
+| A | `ofstream ofile("file.dat", ios::binary); ofile.read((char*)val, sizeof(int));` |
+| B | `ifstream ifile("file.dat", ios::binary); ifile.write((char*)val, sizeof(int)*6);` |
+| C | `ofstream ofile("file.dat", ios::binary); ofile.write((char*)val, 6*sizeof(int));` |
+| D | `ofstream ofile("file.dat", ios::binary); ofile.write((char*)&val, 6*sizeof(int));` |
+
+> ✅ **答案：C**。A用了read不是write；B用了ifstream不能写；D中 `&val` 是数组指针的地址，不是数组首地址，`val` 本身就是首地址。
+
+**题目2：** 下面选项中含有只对文本文件进行读操作的是____。
+
+| 选项 | 函数 |
+|------|------|
+| A | `get()`、`getline()` |
+| B | `getline()`、`write()` |
+| C | `get()`、`put()` |
+| D | `read()`、`write()` |
+
+> ✅ **答案：A**。`get()` 和 `getline()` 是文本读取函数；`read()`/`write()` 是二进制读写函数；`put()` 是字符输出。
+
+**题目3：** `ofstream outf("Myf.txt");` 打开文件是通过文件流类的____实现。
+
+| 选项 | 答案 |
+|------|------|
+| A | 不需要函数 |
+| B | 普通成员函数 |
+| C | 构造函数 |
+| D | open成员函数 |
+
+> ✅ **答案：C**。在对象创建时通过构造函数打开文件，也可以用 `open()` 成员函数单独打开。
+
+**题目4：** 下面程序的作用是____。
+
+```cpp
+#include <iostream>
+using namespace std;
+int main() {
+    char x;
+    while ((x = cin.get()) != '\n')
+        cout.put(x);
+    return 0;
+}
+```
+
+| 选项 | 描述 |
+|------|------|
+| A | 将键盘输入的一个字符显示在显示器上 |
+| B | 将键盘输入的一行字符显示在显示器上 |
+| C | 将键盘输入的一个数据显示在显示器上 |
+| D | 将字符 x 显示在显示器上 |
+
+> ✅ **答案：B**。循环读取字符直到遇到换行符，即读入一行字符并回显。
+
+---
+
+## 3. 文件与对象
+
+### 3.1 面向对象的文件操作框架
+
+在面向对象程序设计中，信息总是放在对象的数据成员里，这些信息最终应该保存到文件中。
+
+**规范的面向对象编程方法：**
+
+1. **程序开始运行时**：由打开的文件重新创建对象（构造函数中读文件）
+2. **运行过程中**：对象的数据成员得到利用和修改
+3. **运行结束时**：把信息重新保存到文件中，然后关闭文件（析构函数中写文件）
+
+> 💡 这是面向对象 C++ 程序设计的**固定框架**：构造函数中打开文件并创建对象，析构函数中保存数据并关闭文件。
+
+### 3.2 综合案例：货物数组类
+
+**需求：**
+- 将商店的货物定义为一个货物数组类
+- 数组对象动态建立，初始为2个元素，不够用时扩充一倍
+- 用文本数据文件建立数组元素对象（构造函数），数据保存和文件关闭放在析构函数
+- 第一次运行时建立空的数据文件，由键盘输入建立对象并写入文件
+- 下一次运行由该文件构造对象，恢复前一次做过的工作
+
+**inventory 类：**
+
+```cpp
+class inventory {
+    string Description;   // 商品名称
+    string No;            // 货号
+    int Quantity;         // 数量
+    double Cost;          // 价格
+    double Retail;        // 零售价
+
+public:
+    inventory(string = "#", string = "#", int = 0, double = 0, double = 0);
+    friend ostream& operator<<(ostream& dist, inventory& iv);
+    friend istream& operator>>(istream& sour, inventory& iv);
+    bool operator==(inventory& iv) { return No == iv.No; }
+    bool operator<=(inventory& iv) { return No <= iv.No; }
+};
+```
+
+**>> 运算符重载（区分键盘和文件输入）：**
+
+```cpp
+istream& operator>>(istream& sour, inventory& iv) {
+    if (sour == cin) {
+        // 从键盘输入时，给提示
+        cout << "请输入货物名称：" << endl; sour >> iv.Description;
+        cout << "请输入货号：" << endl;     sour >> iv.No;
+        cout << "请输入货物数量：" << endl; sour >> iv.Quantity;
+        cout << "请输入货物价格：" << endl; sour >> iv.Cost;
+        cout << "请输入货物零售价格：" << endl; sour >> iv.Retail;
+    } else {
+        // 从文件输入时，直接读取
+        sour >> iv.Description >> iv.No
+             >> iv.Quantity >> iv.Cost >> iv.Retail;
+    }
+    return sour;
+}
+```
+
+> 💡 通过 `sour == cin` 判断输入源是键盘还是文件，实现不同的输入行为。
+
+**Array 模板类：**
+
+```cpp
+template <typename T>
+class Array {
+    T* elements;        // 动态数组
+    int Subscript;      // 已用最大下标值
+    int maxSize;        // 数组容量
+    fstream datafile;   // 文件流对象
+
+public:
+    Array(int = 2);     // 默认元素数为2（便于检验）
+    ~Array();
+    bool IsFull() const;    // 判断是否已满
+    void renews();          // 内存扩大一倍
+    void show();            // 提示剩余可用元素数
+    void ordinsert(T&);     // 以货号为关键字排序插入
+    friend ostream& operator<<(ostream& dist, Array& ar);
+};
+```
+
+**构造函数：从文件读取数据创建对象**
+
+```cpp
+template <typename T>
+Array<T>::Array(int maxs) {
+    maxSize = maxs;
+    Subscript = -1;
+    T temp;
+    elements = new T[maxSize];
+
+    datafile.open("mydatafile.txt", ios::in);
+    if (!datafile == 0) {     // 文件存在
+        while (!datafile.eof()) {
+            datafile >> temp;
+            if (datafile.eof() == 0)
+                ordinsert(temp);
+        }
+        datafile.close();
+    }
+    datafile.clear(0);        // 标准库做法：清除流状态
+}
+```
+
+> ⚠️ `clear(0)` 是标准库做法——若前面曾经读到文件结束或文件打开失败，流状态会被置位，必须清除后才能复用。
+
+**析构函数：将数组元素写入文件**
+
+```cpp
+template <typename T>
+Array<T>::~Array() {
+    int i;
+    datafile.open("mydatafile.txt", ios::out);
+    for (i = 0; i <= Subscript; i++)
+        datafile << elements[i];
+    datafile.close();
+    delete[] elements;
+}
+```
+
+**重载 << 输出数组元素：**
+
+```cpp
+template <typename T>
+ostream& operator<<(ostream& dist, Array<T>& ar) {
+    int i;
+    for (i = 0; i <= ar.Subscript; i++)
+        cout << ar.elements[i];
+    return dist;
+}
+```
+
+**主函数：**
+
+```cpp
+int main() {
+    Array<inventory> mylist;
+    inventory temp;
+    char ch;
+
+    cout << "是否输入新商品？Y or N" << endl;
+    cin >> ch;
+
+    while (ch == 'Y' || ch == 'y') {
+        cin.get();      // 吸收回车
+        cin >> temp;
+        mylist.ordinsert(temp);
+        cout << "是否继续输入？Y or N" << endl;
+        cin >> ch;
+    }
+
+    cout << mylist;
+    return 0;           // 析构函数自动保存数据到文件
+}
+```
+
+> 💡 程序退出时 `return 0` 触发析构函数，自动将数据写入文件。下次运行时构造函数自动从文件恢复数据。这就是"文件与对象"的核心设计模式。
+
+---
+
+## 重点回顾
+
+1. **文本文件读写**：`get/put` 逐字符、`getline` 按行、`>>/<<` 运算符；注意 `skipws` 和 `eof()` 的陷阱
+2. **二进制文件读写**：`read/write` 函数，地址参数必须转 `(char*)`；读写次序必须对称
+3. **文件指针**：`seekg/seekp` 定位、`tellg/tellp` 获取位置；支持 `beg/cur/end` 三种参照点
+4. **文件与对象**：构造函数读文件建对象，析构函数写文件保存数据——面向对象的标准框架
+5. **流状态管理**：`clear(0)` 清除状态字，`rdstate()` 检查状态，`gcount()` 获取实际读取字节数
+
+---
+
+*笔记基于王文博老师课件整理，2026年6月*
